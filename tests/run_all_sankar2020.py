@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from fragmodel import frag_funcs
 from fragmodel.frag_funcs import FragModel
 import os 
 
@@ -62,6 +63,8 @@ alpha  = 0.0
 Cfr    = 1.3
 rho_d  = 500.
 M      = 2.*E0/v**2.
+
+frag_funcs.surface_area = lambda r: 2.*np.pi*(r**2.)
 
 case1 = FragModel(M, v, theta, h0, sigma, sigma_ab, rho_d, Cfr, alpha)
 case1.set_tp_prof(dir_path+'/juptp/jupiter.tp',Ratmo=3637.)

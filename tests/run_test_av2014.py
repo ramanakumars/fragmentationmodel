@@ -19,7 +19,7 @@ rho_d  = 3300.
 fragmodel = FragModel(M, v, theta, h0, sigma, Ch, rho_d, Cfr, alpha)
 fragmodel.Rp = 6371000.
 fragmodel.g  = 9.81
-fragmodel.Cd = 1.5
+fragmodel.Cd = 0.75
 fragmodel.set_tp_prof(dir_path+'/earthtp/chelyabinsk_50k.tp',Ratmo=289.116)
 fragmodel.add_fragment(0.025*M, 0.975e6, sigmafrag=10.5e6)
 
