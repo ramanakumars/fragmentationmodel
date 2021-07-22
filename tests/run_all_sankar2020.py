@@ -40,6 +40,11 @@ filter_tau = (4.85e12)/E0
 fig, axs = plt.subplots(3, 3, figsize=(14,12), sharex=True, sharey=True)
 plt.subplots_adjust(top=0.96, right=0.96, left=0.08, bottom=0.08, hspace=0.15, wspace=0.11)
 
+''' SET THE SIM PARAMETERS '''
+frag_funcs.surface_area = lambda r: 2.*np.pi*(r**2.)
+frag_funcs.SIM_PLANET   = frag_funcs.JUPITER
+frag_funcs.VERBOSE_LEVEL = 1
+
 ''' import the data '''
 # corr     = 9.592
 lcdata   = np.loadtxt(dir_path+"/lightcurve_hueso.csv", delimiter=",", skiprows=1)
@@ -64,7 +69,6 @@ Cfr    = 1.3
 rho_d  = 500.
 M      = 2.*E0/v**2.
 
-frag_funcs.surface_area = lambda r: 2.*np.pi*(r**2.)
 
 case1 = FragModel(M, v, theta, h0, sigma, sigma_ab, rho_d, Cfr, alpha)
 case1.set_tp_prof(dir_path+'/juptp/jupiter.tp',Ratmo=3637.)

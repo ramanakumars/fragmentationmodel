@@ -1,14 +1,57 @@
 import numpy as np
 from scipy.interpolate import interp1d
+from matplotlib import colors as mplcolors
+import matplotlib.pyplot as plt
+from astropy.coordinates import EarthLocation
+import pyproj
+
+plt.rc("text",usetex=True)
+plt.rc("text.latex",preamble=r"\usepackage{amsmath} \usepackage{gensymb} \usepackage{siunitx}")
+# plt.rc("font",**{'family':'sans-serif'})
+plt.rc("font",size="18")
 
 surface_area = lambda r: np.pi*(r**2.)
 
+JUPITER = 0
+EARTH   = 1
+
+planet_names = ['Jupiter', 'Earth']
+
+VERBOSE_LEVEL = 2
+SIM_PLANET    = JUPITER
+
 class FragModel():
     '''
-        Fragmentation model based on Avramenko et al. 2014 (Av 2014)
+        Fragmentation model based on Avramenko et al. (2014) and Wheeler et al. (2017). 
+        Treats the incoming meteor as a collection of loosely held objects
+        which are each treated with a separate strength, scaling. Each fragment
+        is released at specified dynamic pressure. 
     '''
     def __init__(self, M, v, theta, h0, sigma, sigma_ab, rho_d, Cfr, alpha):
-        ''' initialize values '''
+        ''' 
+            initialize values for the main body
+
+            Parameters
+            ----------
+            M : float
+                mass of the main body (kg)
+            v : float
+                impacting velocity (m/s)
+            theta : float
+                angle with respect to the horizontal plane (radians)
+            h0 : float
+                initial height (m)
+            sigma : float
+                initial bulk strength of the main body (Pa)
+            sigma_ab : float
+                ablation coefficient (kg/J)
+            rho_d : float
+                bulk density of the meteor (kg/m^3)
+            Cfr : float
+                fragment parameter (see Avramenko et al., 2017, unitless)
+            alpha : float
+                Weibull strength scaling parameter (unitless)
+        '''
         self.M0       = M     ## initial mass
         self.v0       = v     ## initial velocity
         self.theta0   = theta ## angle wrt horizontal
@@ -23,13 +66,22 @@ class FragModel():
 
         ''' constants '''
         self.Qa    = 1.e7  ## heat of ablation J/kg 
-        self.dt    = 5.e-4 ## timestep in seconds
+        self.dt    = 1.e-3 ## timestep in seconds
         self.Cr    = 0.37  ## ratio of ablation released as heat (Av 2014)
-        self.Cd    = 0.92  ## from Carter, Jandir & Kress results in 2009 LPSC
-        self.g     = 24.00  ## gravity
-        self.Rp    = 70000000 ## planet radius
+        if SIM_PLANET==EARTH:
+            self.Cd    = 0.75  
+            self.g     = 9.81     ## gravity
+            self.Rp    = 6371000. ## planet radius
+        elif SIM_PLANET==JUPITER:
+            self.Cd    = 0.92     ## from Carter, Jandir & Kress results in 2009 LPSC
+            self.g     = 24.00    ## gravity
+            self.Rp    = 70000000 ## planet radius
+        else:
+            raise NotImplementedError("Planet is not implemented")
 
-        print("Initializing with diameter %.3f"%(self.r0*2))
+        if VERBOSE_LEVEL>1:
+            print("Initializing with diameter %.3f"%(self.r0*2))
+            print("planet: %s g: %.2f m/s^2; Rp: %.1f km"%(planet_names[SIM_PLANET], self.g, self.Rp/1.e3))
 
         ''' create the data structures to hold results '''
         self.out   = {}
@@ -101,7 +153,7 @@ class FragModel():
         # else:
         #     print("%.2f & %.2f & %.1f & %.2f & - \\\\"%(M/1000., Prelease/1.e6, Cfr, alpha))
 
-    def integrate(self, tlim=20.0, vlim=100., hlim=100., mlim=0.05, verbose=1, offset_time=True):
+    def integrate(self, tlim=20.0, vlim=1., hlim=100., mlim=0.1):
         Qa  = self.Qa
         Cr  = self.Cr
         dt  = self.dt
@@ -126,7 +178,6 @@ class FragModel():
         Pram  = rho_a*(v**2.)
         alpha = self.alpha
         sigma_ab = self.sigma_ab
-
 
         nfrags = len(self.fraginfo["Mfrag"])
 
@@ -155,18 +206,18 @@ class FragModel():
         self.mend     = np.zeros(nfrags)
 
         self.t.append(t)
-        self.M[0][0]       = M
-        self.v[0][0]       = v
-        self.S[0][0]       = S
-        self.r[0][0]       = r
+        self.M[0][:]       = M
+        self.v[0][:]       = v
+        self.S[0][:]       = S
+        self.r[0][:]       = r
         self.h[0][:]       = h
-        self.theta[0][0]   = theta
-        self.DynPres[0][0] = Pram
-        self.sigma[0][0]   = sigma
-        self.Mfr[0][0]     = Mfr
-        self.Nfr[0][0]     = Nfr
-        self.dErdt[0][0]   = 0.
-        self.dEddt[0][0]   = 0.
+        self.theta[0][:]   = theta
+        self.DynPres[0][:] = Pram
+        self.sigma[0][:]   = sigma
+        self.Mfr[0][:]     = Mfr
+        self.Nfr[0][:]     = Nfr
+        self.dErdt[0][:]   = 0.
+        self.dEddt[0][:]   = 0.
 
         end = False
 
@@ -218,6 +269,7 @@ class FragModel():
                     dSdt  = (2./3.)*(S/M)*dMdt
                     
                     if(Pram > sigma):
+
                         Cfr    = self.fraginfo["Cfr"][i]
                         s0     = self.fraginfo['sigmafrag'][i]
                         M0     = self.fraginfo['Mfrag'][i]
@@ -255,22 +307,24 @@ class FragModel():
                         check if we need to stop working this fragment
                     '''
                     ### stop conditions
-                    if((self.v[-1][i] < vlim)|(self.M[-1][i] < mlim)|(self.S[-1][i]<0.)):
+                    if((self.v[-1][i] < vlim)|(self.M[-1][i] < mlim)|(self.S[-1][i]<0.)|(self.h[-1][i]<100.)):
                         self.fraginfo["done"][i] = True
                         
+                        if VERBOSE_LEVEL > 2:
+                            print("Ending %d -- S: %.3e"%(i, self.S[-1][i]))
                         self.hend[i]  = h
                         self.tend[i]  = t
                         self.vend[i]  = v
                         self.mend[i]  = M
-
-
 
                 ''' set the height of the fragment to be the 
                     same as the main body
                     just for bookkeeping purposes
                 '''
                 if(not self.fraginfo['released'][i]):
-                    self.h[-1][i] = self.h[-1][0]
+                    self.h[-1][i]     = self.h[-1][0]
+                    self.v[-1][i]     = self.v[-1][0]
+                    self.theta[-1][i] = self.theta[-1][0]
             ''' 
                 check if the body needs to fragmented.
                 fragment release happens at the next 
@@ -317,9 +371,14 @@ class FragModel():
                         self.r[-1][i]     = np.sqrt(self.S[-1][i]/(np.pi))
                         self.theta[-1][i] = self.theta[-1][0]
                         
-                        if(verbose==2):
+                        if VERBOSE_LEVEL>2:
                             print("Frag at h=%.3f km, P=%.3f MPa, Mfrag=%.3e kg, Mmain: %.3e kg, rfrag=%.3f m"%(self.h[-1][0]/1000., self.DynPres[-1][0]/1.e6, Mfrag,  Mmain, rfrag))
+                            print("Cfr=%.2f sigma=%.2e"%(self.fraginfo["Cfr"][i], self.fraginfo["sigmafrag"][i]))
                             print("Smain before: %.3f after: %.3f"%(Smain, self.S[-1][0]))
+                            print()
+                        if(VERBOSE_LEVEL==-1):
+                            ## special verbose level to print the frag details in latex table format
+                            print("%.2f & %.3f & %.3f & %.2f & %.2f"%(Mfrag/1.e3, self.DynPres[-1][0]/1.e6, self.h[-1][0]/1.e3, self.fraginfo["Cfr"][i], self.fraginfo["sigmafrag"][i]/1.e6))
 
                         ''' 
                             set the strength of the fragment based on the same 
@@ -337,7 +396,7 @@ class FragModel():
                         self.h[-1][i]     = self.h[-1][0]
                         self.Mfr[-1][i]   = Mfrag
                         self.Nfr[-1][i]   = 1
-
+            
             ### update the time 
             t  += dt
             self.t.append(t)
@@ -351,10 +410,16 @@ class FragModel():
                 end = True
                 for i in range(nfrags):
                     if(self.tend[i]==0.):
-                        self.hend[i]  = h
+                        self.hend[i]  = self.h[-1][i]
                         self.tend[i]  = t
-                        self.vend[i]  = v
-                        self.mend[i]  = M
+                        self.vend[i]  = self.v[-1][i]
+                        self.mend[i]  = self.M[-1][i]
+
+                        S = self.S[-1][i]
+                        v = self.v[-1][i]
+                        rho_a = self.rhoz(self.h[-1][i])
+                        dMdt  = -sigma_ab*S*rho_a*(np.abs(v)**3.)
+                        # print(self.M[-1][i], S, dMdt, self.v[-1][i])
 
         self.t = np.asarray(self.t)
         self.M = np.asarray(self.M)
@@ -370,36 +435,20 @@ class FragModel():
         self.dErdt = np.asarray(self.dErdt)
         self.dEddt = np.asarray(self.dEddt)
 
-
-        # self.t = self.t.reshape((self.t.shape[0],1))
-
         ''' clean up the data '''
         self.dEdtall = np.sum(self.dErdt, axis=1)
-        if(offset_time):
-            dtoff        = self.t[self.dEdtall.argmax()]
-            self.t      -= dtoff
-            self.tend   -= dtoff
+        dtoff        = self.t[self.dEdtall.argmax()]
+        # self.t      -= dtoff
+        # self.tend   -= dtoff
         self.Et      = interp1d(self.t, np.log10(self.dEdtall+1.e-25), kind='cubic', bounds_error=False, fill_value=-25)
 
-        self.Edepo    = np.zeros_like(self.dEddt)
-        self.Edepoall = np.zeros_like(self.dEdtall)
-        for i in range(nfrags):
-            maski    = self.dEddt[:,i] > 0.
-            self.Edepo[maski,i]  = (self.dEddt[maski,i])/(self.v[maski,i]*np.sin(self.theta[maski,i]))
-            ### interpolate each Edepo on to the grid of the main body
-            if(i > 0):
-                hi       = self.h[maski,i]
-                Edepoi   = self.Edepo[maski,i]
-
-                Eh = interp1d(hi, np.log10(Edepoi), kind='cubic', bounds_error=False, fill_value=-25.)
-                self.Edepoall += 10.**(Eh(self.h[:,0]))
-            else:
-                self.Edepoall += self.Edepo[:,i]
-        
-        if(verbose>0):
+        if VERBOSE_LEVEL>0:
             kt = 4.184e12 ## 1 kt TNT in J
             ## convert dE/dt to dE/dz in units of kT/km
-            #self.Edepo = self.dEddt[:,0]/(self.v[:,0]*np.sin(self.theta[:,0]))*(1000./kt)
+            self.Edepo = self.dEddt/(self.v*np.sin(self.theta))
+
+            self.Edepo[~np.isfinite(self.Edepo)] = 0.
+
 
             ''' print out the output at the end ''' 
             endt    = self.tend.max()#self.t[-1]
@@ -412,21 +461,55 @@ class FragModel():
             endMfr  = self.Mfr[tii,0]
             endP    = self.Pz(endh)
 
-            ermax   = self.dEdtall.max()
-            ermaxi  = self.dEdtall.argmax()
-            hrmax   = self.h[ermaxi,0]/1000.
-            edmax   = self.Edepoall.max()*1000./kt
-            edmaxi  = self.Edepoall.argmax()
-            hdmax   = self.h[edmaxi,0]/1000.
+            edmax   = self.dEdtall.max()
+            edmaxi  = self.dEdtall.argmax()
+            hmax    = self.h[edmaxi,0]/1000.
 
+            hflat   = self.h.flatten()
+            hmin    = np.min(hflat[(hflat!=0.0)&(~np.isnan(hflat))])
+
+            self.Edepoall = np.zeros_like(self.dEdtall)
+            for i in range(nfrags):
+                maski    = self.dEddt[:,i] > 0.
+                self.Edepo[maski,i]  = (self.dEddt[maski,i])/(self.v[maski,i]*np.sin(self.theta[maski,i]))
+                ### interpolate each Edepo on to the grid of the main body
+                if(i > 0):
+                    hi       = self.h[maski,i]
+                    Edepoi   = self.Edepo[maski,i]
+
+                    Eh = interp1d(hi, np.log10(Edepoi), kind='cubic', bounds_error=False, fill_value=-25.)
+                    self.Edepoall += 10.**(Eh(self.h[:,0]))
+                else:
+                    self.Edepoall += self.Edepo[:,i]
+            
+            
             ## get the total energy released in kt
             totenergy = np.trapz(np.sum(self.dErdt,axis=1), self.t[:])/kt
 
             print("Simulation ended at: ")
             print(" t=%.3fs with net mass=%.3e kg at v=%.3f km/s at h=%.3f km (P=%.2f mbar)"%(endt, endm, endv/1000., endh/1000., endP/100.))
-            print("Total of %6d fragments with mass %.3f kg."%(endNfr, endMfr))
+            print("Total of %6d fragments with mass %.3e kg."%(endNfr, endMfr))
             print("Total energy released: %.3e kt"%(totenergy))
-            print("Energy release peak of %.3e kt/s at h=%.3f km P=%.2f mbar"%(ermax/kt, hrmax, self.Pz(hrmax*1000.)/100.))
-            print("Energy deposition peak of %.3e kt/km at h=%.3f km P=%.2f mbar"%(edmax, hdmax, self.Pz(hdmax*1000.)/100.))
+            print("Energy peak of %.3e W at h=%.3f km P=%.2f mbar"%(edmax, hmax, self.Pz(hmax*1000.)/100.))
             print()
+
+    def get_frag_latlon(self, latlon, azimuth):
+        nfrags = len(self.fraginfo["Mfrag"])
+
+        self.frag_geo_loc = np.zeros((self.t.size, nfrags, 2))
+
+        geod = pyproj.Geod(ellps='WGS84')
+
+        for i in range(nfrags):
+            self.frag_geo_loc[0,i,:] = latlon
+            
+        for i, ti in enumerate(self.t):
+            if i==0:
+                continue
+            
+            for k in range(nfrags):
+
+                if self.theta[i-1,k] > 0.:
+                    dist    = np.trapz(self.v[:i,k]*np.cos(self.theta[:i,k]), self.t[:i])
+                    self.frag_geo_loc[i,k,:] = geod.fwd(latlon[0], latlon[1], azimuth, dist, radians=False)[:2]
 

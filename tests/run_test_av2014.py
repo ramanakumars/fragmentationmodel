@@ -1,4 +1,5 @@
 import numpy as np
+from fragmodel import frag_funcs
 from fragmodel.frag_funcs import FragModel
 import matplotlib.pyplot as plt
 import os 
@@ -6,6 +7,7 @@ import os
 ## for testing cases
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
+''' initial parameters for the main body '''
 M      = 1.185e7
 v      = 19040.
 theta  = np.radians(17.)
@@ -16,11 +18,17 @@ alpha  = 0.18
 Cfr    = 1.5
 rho_d  = 3300.
 
+''' set the global simulation values '''
+frag_funcs.SIM_PLANET = frag_funcs.EARTH
+frag_funcs.VERBOSE_LEVEL = 3 ## extra details
+
+''' initialize the model '''
 fragmodel = FragModel(M, v, theta, h0, sigma, Ch, rho_d, Cfr, alpha)
-fragmodel.Rp = 6371000.
-fragmodel.g  = 9.81
-fragmodel.Cd = 0.75
+
+''' set the t-p profile to get the density as a function of height '''
 fragmodel.set_tp_prof(dir_path+'/earthtp/chelyabinsk_50k.tp',Ratmo=289.116)
+
+''' add the fragment that creates the final flash '''
 fragmodel.add_fragment(0.025*M, 0.975e6, sigmafrag=10.5e6)
 
 fragmodel.integrate(45.)
@@ -34,10 +42,12 @@ h       = fragmodel.h
 
 kt = 4.184e12
 
+''' load the deposition energy profile data to compare the sim output '''
 energydepdata = np.loadtxt(dir_path+'/energydep/ChelyabinskEnergyDep_Wheeler-et-al-2018.txt', skiprows=1)
 
 colors = ['r', 'g']
 
+''' first plot is the comparison of observed to modelled energy deposition profile '''
 fig1 = plt.figure()
 ax1  = fig1.add_subplot(111)
 ax1.plot(fragmodel.Edepoall*(1000./kt), h[:,0]/1000., 'k-', label='Modeled total deposited energy')
@@ -50,6 +60,8 @@ ax1.set_xlabel(r'Energy deposited [kt/km]')
 ax1.set_ylabel(r'Height [km]')
 ax1.legend(loc='upper right')
 
+
+''' second plot is the fraction of mass that is ablated '''
 fig2 = plt.figure()
 ax2  = fig2.add_subplot(111)
 
