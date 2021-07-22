@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-surface_area = lambda r: 2.*np.pi*(r**2.)
+surface_area = lambda r: np.pi*(r**2.)
 
 class FragModel():
     '''
@@ -23,7 +23,7 @@ class FragModel():
 
         ''' constants '''
         self.Qa    = 1.e7  ## heat of ablation J/kg 
-        self.dt    = 1.e-3 ## timestep in seconds
+        self.dt    = 5.e-4 ## timestep in seconds
         self.Cr    = 0.37  ## ratio of ablation released as heat (Av 2014)
         self.Cd    = 0.92  ## from Carter, Jandir & Kress results in 2009 LPSC
         self.g     = 24.00  ## gravity
@@ -101,7 +101,7 @@ class FragModel():
         # else:
         #     print("%.2f & %.2f & %.1f & %.2f & - \\\\"%(M/1000., Prelease/1.e6, Cfr, alpha))
 
-    def integrate(self, tlim=20.0, vlim=1., hlim=100., mlim=0.001, verbose=1):
+    def integrate(self, tlim=20.0, vlim=100., hlim=100., mlim=0.05, verbose=1, offset_time=True):
         Qa  = self.Qa
         Cr  = self.Cr
         dt  = self.dt
@@ -241,7 +241,7 @@ class FragModel():
                     self.M[-1][i]       = M
                     self.v[-1][i]       = v
                     self.theta[-1][i]   = theta
-                    self.r[-1][i]       = np.sqrt(S/(2*np.pi))
+                    self.r[-1][i]       = np.sqrt(S/(np.pi))
                     self.S[-1][i]       = S
                     self.h[-1][i]       = h
                     self.DynPres[-1][i] = Pram
@@ -314,7 +314,7 @@ class FragModel():
                         ''' fill in the values for the fragment '''
                         self.M[-1][i]     = Mfrag
                         self.S[-1][i]     = surface_area(rfrag)#Smain*(Mfrag/Mmain)**(2./3.)
-                        self.r[-1][i]     = np.sqrt(self.S[-1][i]/(2.*np.pi))
+                        self.r[-1][i]     = np.sqrt(self.S[-1][i]/(np.pi))
                         self.theta[-1][i] = self.theta[-1][0]
                         
                         if(verbose==2):
@@ -375,9 +375,10 @@ class FragModel():
 
         ''' clean up the data '''
         self.dEdtall = np.sum(self.dErdt, axis=1)
-        #dtoff        = self.t[self.dEdtall.argmax()]
-        #self.t      -= dtoff
-        #self.tend   -= dtoff
+        if(offset_time):
+            dtoff        = self.t[self.dEdtall.argmax()]
+            self.t      -= dtoff
+            self.tend   -= dtoff
         self.Et      = interp1d(self.t, np.log10(self.dEdtall+1.e-25), kind='cubic', bounds_error=False, fill_value=-25)
 
         self.Edepo    = np.zeros_like(self.dEddt)
