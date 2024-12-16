@@ -3,12 +3,6 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 
-JUPITER = 0
-EARTH = 1
-
-planet_names = ['Jupiter', 'Earth']
-
-
 @dataclass(init=False)
 class Planet:
     name: str
@@ -18,17 +12,17 @@ class Planet:
     Cr: float
     Ratmo: float
     rhoz: callable
-    pz: callable
+    Pz: callable
 
-    def define_planet(self, planet: int):
+    def __init__(self, planet: str):
         self.Cr = 0.37  # ratio of ablation released as heat (Av 2014)
-        if planet == EARTH:
+        if planet.lower() == "earth":
             self.name = "Earth"
             self.Cd = 0.75
             self.gravity = 9.81  # gravity
             self.planet_radius = 6371000.  # planet radius
             self.Ratmo = 287.  # dry specific gas constant
-        elif planet == JUPITER:
+        elif planet.lower() == "jupiter":
             self.name = "Jupiter"
             self.Cd = 0.92  # from Carter, Jandir & Kress results in 2009 LPSC
             self.gravity = 24.00  # gravity
