@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from .energy import Energy
+from .state import State
 from .planet import Planet
 import numpy as np
-import copy
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ def surface_area(r):
 
 @dataclass
 class Fragment:
+    # these are parameters that we define when defining the fragment
     number: int
     initial_mass: float
     initial_strength: float
@@ -24,23 +25,24 @@ class Fragment:
     planet: Planet
     release_pressure: float = 0
 
+    # these are parameters that will mostly be set only after the fragment is released
+    # so these will change with the time/location of release from the main body
     released: bool = field(init=False, default=False)
     done: bool = field(init=False, default=False)
     energy: Energy = field(init=False)
-    time: list[float] = field(init=False)
-    angle: list[float] = field(init=False)
-    mass: list[float] = field(init=False)
-    sigma: list[float] = field(init=False)
-    radius: list[float] = field(init=False)
-    surface_area: list[float] = field(init=False)
-    velocity: list[float] = field(init=False)
-    mass_loss_rate: list[float] = field(init=False)
-    acceleration: list[float] = field(init=False)
-    dynamic_pressure: list[float] = field(init=False)
-    fragment_count: list[float] = field(init=False)
-    fragment_mass: list[float] = field(init=False)
+    state: State = field(init=False)
 
-    def release(self, release_time: float, release_altitude: float, release_velocity: float, release_angle: float) -> None:
+    def __post_init__(self):
+        self.state = State()
+        self.energy = Energy()
+
+    def set_release_properties(self, release_time: float, release_altitude: float, release_velocity: float, release_angle: float) -> None:
+        self.release_time = release_time
+        self.release_velocity = release_velocity
+        self.release_altitude = release_altitude
+        self.release_angle = release_angle
+
+    def release(self) -> None:
         """
         Initialize the time-dependent state variables and "release" the fragment
 
@@ -49,25 +51,24 @@ class Fragment:
         :param release_velocity: the velocity at which the fragment was released [m/s]
         :param release_angle: the angle with respect to the vertical [degrees]
         """
-        self.time = [release_time]
-        self.mass = [self.initial_mass]
-        self.velocity = [release_velocity]
-        self.angle = [np.radians(release_angle)]
-        self.sigma = [self.initial_strength]
-        self.height = [release_altitude]
+        self.state.time = self.release_time
+        self.state.mass = self.initial_mass
+        self.state.velocity = self.release_velocity
+        self.state.angle = np.radians(self.release_angle)
+        self.state.strength = self.initial_strength
+        self.state.height = self.release_altitude
         radius = ((3 * self.initial_mass) / (4 * np.pi * self.bulk_density)) ** (1 / 3)
-        self.radius = [radius]
-        self.surface_area = [surface_area(radius)]
-        self.mass_loss_rate = [0]
-        self.acceleration = [0]
-        self.dynamic_pressure = [self.planet.rhoz(release_altitude) * release_velocity ** 2.]
-        self.fragment_count = [1]
-        self.fragment_mass = [self.initial_mass]
+        self.state.radius = radius
+        self.state.surface_area = surface_area(radius)
+        self.state.mass_loss_rate = 0
+        self.state.acceleration = 0
+        self.state.dynamic_pressure = self.planet.rhoz(self.release_altitude) * self.release_velocity ** 2.
+        self.state.fragment_count = 1
+        self.state.fragment_mass = self.initial_mass
         self.released = True
         self.done = False
-        self.energy = Energy()
 
-        logger.info(f"Releasing fragment {self.number} at time {release_time} s and height {release_altitude} m with mass {self.initial_mass} kg and velocity {release_velocity} m/s")
+        logger.info(f"Releasing fragment {self.number} at time {self.release_time:.2f} s and height {self.release_altitude / 1e3:.2f} km with mass {self.initial_mass / 1e3:.2f} tonnes and velocity {self.release_velocity:.2f} m/s")
 
     def update(self, dt: float) -> None:
         '''
@@ -75,16 +76,16 @@ class Fragment:
 
         :param dt: Timestep in seconds
         '''
-        v = copy.deepcopy(self.velocity[-1])
-        M = copy.deepcopy(self.mass[-1])
-        S = copy.deepcopy(self.surface_area[-1])
-        h = copy.deepcopy(self.height[-1])
-        theta = copy.deepcopy(self.angle[-1])
-        Nfr = copy.deepcopy(self.fragment_count[-1])
-        Mfr = copy.deepcopy(self.fragment_mass[-1])
-        sigma = copy.deepcopy(self.sigma[-1])
+        v = self.state.velocity
+        M = self.state.mass
+        S = self.state.surface_area
+        h = self.state.height
+        theta = self.state.angle
+        Nfr = self.state.fragment_count
+        Mfr = self.state.fragment_mass
+        sigma = self.state.strength
 
-        logger.debug(f"time: {self.time[-1]:0.2f} height: {self.height[-1]:0.2f} mass: {self.mass[-1]:0.2f} velocity: {self.velocity[-1]:0.2f}")
+        logger.debug(f"time: {self.state.time:0.2f} height: {self.state.height:0.2f} mass: {self.state.mass:0.2f} velocity: {self.state.velocity:0.2f}")
 
         rho_a = self.planet.rhoz(h)
         Pram = rho_a * (v**2.)
@@ -114,7 +115,7 @@ class Fragment:
             Nfr = 16. * (S**3.) * self.bulk_density**2. / (9. * np.pi * M**2.)
             sigma = s0 * (M0 / Mfr)**(alpha)
         else:
-            Nfr = 1
+            Nfr = self.state.fragment_count
 
         M += dMdt * dt
         Mfr = M / Nfr
@@ -123,32 +124,29 @@ class Fragment:
         h += -v * np.sin(theta) * dt
         v += dvdt * dt
 
-        ''' fill in the stuff for the fragment '''
-        self.time.append(self.time[-1] + dt)
-        self.mass.append(M)
-        self.velocity.append(v)
-        self.angle.append(theta)
-        self.radius.append(np.sqrt(S / (np.pi)))
-        self.surface_area.append(S)
-        self.height.append(h)
-        self.dynamic_pressure.append(Pram)
-        self.sigma.append(sigma)
+        # fill in the stuff for the fragment
+        self.state.time = self.state.time + dt
+        self.state.mass = M
+        self.state.velocity = v
+        self.state.angle = theta
+        self.state.radius = np.sqrt(S / (np.pi))
+        self.state.surface_area = S
+        self.state.height = h
+        self.state.dynamic_pressure = Pram
+        self.state.strength = sigma
 
-        self.fragment_mass.append(Mfr)
-        self.fragment_count.append(Nfr)
-        self.energy.append(dErdt, dEddt, v, theta)
+        self.state.fragment_mass = Mfr
+        self.state.fragment_count = Nfr
+        self.energy.update(dErdt, dEddt, v, theta)
 
     def check_limits(self, min_velocity: float, min_height: float):
-        if self.velocity[-1] < min_velocity or self.height[-1] < min_height:
-            logger.info(f"Fragment {self.number} finished at {self.time[-1]} s")
+        if self.state.velocity < min_velocity or self.state.height < min_height:
+            logger.info(f"Fragment {self.number} finished at {self.state.time:.2f} s")
             self.done = True
 
-    def convert_to_arrays(self) -> None:
-        """
-        Helper function for converting everything to arrays
-        """
-        for key in ['time', 'mass', 'velocity', 'angle', 'radius', 'surface_area',
-                    'height', 'dynamic_pressure', 'sigma', 'fragment_mass', 'fragment_count']:
-            self.__setattr__(key, np.asarray(self.__getattribute__(key)))
+    def asdict(self) -> dict[float]:
+        '''
+        convert the dataclass to a dictionary
+        '''
 
-        self.energy.convert_to_arrays()
+        return {**self.state.asdict(), **self.energy.asdict()}

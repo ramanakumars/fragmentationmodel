@@ -1,10 +1,29 @@
 import numpy as np
 from .fragment import Fragment
 from .planet import Planet
+import pandas as pd
 import logging
 
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_dict(dict: dict, name: str, preserve_time: bool = False) -> dict:
+    '''
+    sanitize the state dictionary by removing time if needed and adding fragment IDs
+
+    :param name: the fragment name
+    :preserve_time: boolean flag to preserve or discard the time data
+
+    :returns: the new dictionary with sanitized keys
+    '''
+    new_dict = {}
+    for key, value in dict.items():
+        if key == 'time' and not preserve_time:
+            continue
+        new_dict[f'{name}.{key}'] = value
+
+    return new_dict
 
 
 class FragmentationModel:
@@ -30,12 +49,11 @@ class FragmentationModel:
 
         self.main_body = Fragment(0, initial_mass, strength, bulk_density, ablation_coefficient, C_fr,
                                   alpha, self.planet)
-
-        self.main_body.release(0, initial_height, initial_velocity, initial_angle)
+        self.main_body.set_release_properties(0, initial_height, initial_velocity, initial_angle)
 
         self.fragments: list[Fragment] = []
 
-        logger.info(f"Initializing with diameter: {self.main_body.radius[0] * 2}")
+        logger.info(f"Initializing with diameter: {self.main_body.state.radius * 2}")
         logger.info(f"planet: {planet.name} g: {planet.gravity} m/s^2; Rp: {planet.planet_radius / 1000} km")
 
     def add_fragment(self, fragment_mass: float, Prelease: float, Cfr: float = 1.5,
@@ -54,8 +72,7 @@ class FragmentationModel:
                                        self.main_body.ablation_coefficient, Cfr, alpha,
                                        self.planet, release_pressure=Prelease))
 
-    def integrate(self, dt: float = 1e-2, max_time: float = 20, min_velocity: float = 100,
-                  min_height: float = 100):
+    def integrate(self, dt: float = 1e-2, max_time: float = 20, min_velocity: float = 100, min_height: float = 100) -> pd.DataFrame:
         """
         Integrate the model forward in time until one of the limits are reached
 
@@ -63,11 +80,19 @@ class FragmentationModel:
         :param max_time: the max time for the model in seconds
         :param min_velocity: the minimum velocity to stop computing fragment updates in m/s
         :param min_height: the minimum height at which to stop computation in m
+
+        :returns: pandas DataFrame object with the state variables corresponding to each fragment for each timestep
         """
 
         t = 0
+        times = [0]
+        states: list[dict] = []
+
+        # set the initial values for the main body
+        self.main_body.release()
 
         while t < max_time:
+            t = times[-1]
             # update the main body first
             # this involves calculating the next timestep in the position, velocity and mass
             # of the main body
@@ -80,32 +105,50 @@ class FragmentationModel:
                 elif not fragment.released:
                     # for the fragments that are not released, check if the main body's
                     # ram pressure exceeds the release pressure
-                    if self.main_body.dynamic_pressure[-1] > fragment.release_pressure:
+                    if self.main_body.state.dynamic_pressure > fragment.release_pressure:
                         # if so, release it
                         if fragment.initial_strength == -1:
                             # if the fragment has the same strength as the main body
                             # set it here dynamically
-                            fragment.initial_strength = self.main_body.sigma[-1]
-                        fragment.release(t, self.main_body.height[-1], self.main_body.velocity[-1],
-                                         np.degrees(self.main_body.angle[-1]))
+                            fragment.initial_strength = self.main_body.state.strength
+                        fragment.set_release_properties(t, self.main_body.state.height, self.main_body.state.velocity,
+                                                        np.degrees(self.main_body.state.angle))
 
-                        Mmain = self.main_body.mass[-1]
+                        Mmain = self.main_body.state.mass
                         Mfrag = fragment.initial_mass
                         # recalculate the new radius for the main body by assuming
                         # r(M) = r0(M/M0)^(1/3) (see S(M) from Av 2014)
-                        Smain = self.main_body.surface_area[-1]
-                        self.main_body.surface_area[-1] = Smain * ((Mmain - Mfrag) / Mmain)**(2. / 3.)
+                        Smain = self.main_body.state.surface_area
+                        self.main_body.state.surface_area = Smain * ((Mmain - Mfrag) / Mmain)**(2. / 3.)
 
                         # update the strength of the main  post fragmentation
-                        sigmamain = self.main_body.sigma[-1]
+                        sigmamain = self.main_body.state.strength
                         alphamain = self.main_body.alpha
-                        self.main_body.sigma[-1] = sigmamain * (Mmain / (Mmain - Mfrag))**(alphamain)
+                        self.main_body.state.sigma = sigmamain * (Mmain / (Mmain - Mfrag))**(alphamain)
 
                         # update the mass of the main body
-                        self.main_body.mass[-1] -= fragment.initial_mass
+                        self.main_body.state.mass -= fragment.initial_mass
+                        fragment.release()
+            self.main_body.check_limits(min_velocity, min_height)
 
             # Update the time
             t += dt
-        self.main_body.convert_to_arrays()
-        for fragment in self.fragments:
-            fragment.convert_to_arrays()
+            times.append(t)
+
+            # add the fragment data to a running list
+            # first add the main body. we want to use the time from the main body
+            state_dict = sanitize_dict(self.main_body.asdict(), 'main', True)
+
+            # then each fragment
+            for fragment in self.fragments:
+                state_dict = {**state_dict, **sanitize_dict(fragment.asdict(), f'f{fragment.number}')}
+            states.append(state_dict)
+
+            # end the sim if all fragments are done
+            if self.main_body.done and np.all([fragment.done for fragment in self.fragments]):
+                logger.info(f"All fragments reached computation limits at {t:.2f}s")
+                break
+
+        # convert to a dataframe and return it
+        states_df = pd.DataFrame.from_records(states)
+        return states_df

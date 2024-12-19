@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
+import pathlib
 from scipy.interpolate import interp1d
 
 
@@ -15,6 +16,11 @@ class Planet:
     Pz: callable
 
     def __init__(self, planet: str):
+        """
+        define the planetary constants based on the planet selected
+
+        :param planet: the name of the planet
+        """
         self.Cr = 0.37  # ratio of ablation released as heat (Av 2014)
         if planet.lower() == "earth":
             self.name = "Earth"
@@ -31,7 +37,13 @@ class Planet:
         else:
             raise NotImplementedError("Planet is not implemented")
 
-    def define_temperature_profile(self, tpzfile):
+    def define_temperature_profile(self, tpzfile: pathlib.Path) -> None:
+        """
+        Loading the temperature/pressure profile as a function of height and set the
+        corresponding density/pressure functions
+
+        :param tpzfile: path to the altitude/pressure/temperature file
+        """
         # Get TP profile
         tpz = np.genfromtxt(tpzfile, skip_header=1, delimiter=',')
 
@@ -45,4 +57,3 @@ class Planet:
 
         self.rhoz = lambda z: 10.**(Pz(z) + 2.) / (self.Ratmo * Tz(z))
         self.Pz = lambda z: 10.**(Pz(z) + 2.)
-        return
