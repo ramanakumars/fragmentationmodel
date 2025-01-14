@@ -15,5 +15,6 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
 
+   Chelyabinsk test <notebooks/Chelyabinsk.ipynb>
    Fragmention module <fragmodel.rst>
 
