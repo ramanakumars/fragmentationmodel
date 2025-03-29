@@ -4,9 +4,16 @@ import numpy as np
 
 @dataclass()
 class Energy:
-    total: float = field(init=False)  # total power in W
-    radiated: float = field(init=False)  # total radiated power in W
-    deposited: float = field(init=False)  # total deposited power in J/km
+    """
+    Class to hold the energy release information for the fragment at a given time
+    """
+
+    total: float = field(init=False)
+    """ total power in W"""
+    radiated: float = field(init=False)
+    """ total radiated power in W """
+    deposited: float = field(init=False)
+    """ total deposited power in J/km"""
 
     def __post_init__(self):
         """
@@ -16,7 +23,7 @@ class Energy:
         self.radiated = 0
         self.deposited = 0
 
-    def update(self, dErdt, dEddt, v, theta):
+    def update(self, dErdt: float, dEddt: float, v: float, theta: float) -> None:
         """
         Add the energy data to the list
 

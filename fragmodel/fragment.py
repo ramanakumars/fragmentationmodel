@@ -36,7 +36,30 @@ class Fragment:
         self.state = State()
         self.energy = Energy()
 
+    def get_config(self) -> dict:
+        '''
+        Return the configuration of the fragment as a dictionary
+        '''
+        return {
+            'number': self.number,
+            'initial_mass': self.initial_mass,
+            'initial_strength': self.initial_strength,
+            'bulk_density': self.bulk_density,
+            'ablation_coefficient': self.ablation_coefficient,
+            'C_fr': self.C_fr,
+            'alpha': self.alpha,
+            'planet': self.planet.name,
+            'release_pressure': self.release_pressure
+        }
+
     def set_release_properties(self, release_time: float, release_altitude: float, release_velocity: float, release_angle: float) -> None:
+        """
+        Set the release properties of the fragment
+        :param release_time: the time at which the fragment was released [s]
+        :param release_altitude: the height at which the fragment was released [m]
+        :param release_velocity: the velocity at which the fragment was released [m/s]
+        :param release_angle: the angle with respect to the vertical [degrees]
+        """
         self.release_time = release_time
         self.release_velocity = release_velocity
         self.release_altitude = release_altitude
@@ -45,11 +68,6 @@ class Fragment:
     def release(self) -> None:
         """
         Initialize the time-dependent state variables and "release" the fragment
-
-        :param release_time: the time at which the fragment was released [s]
-        :param release_altitude: the height at which the fragment was released [m]
-        :param release_velocity: the velocity at which the fragment was released [m/s]
-        :param release_angle: the angle with respect to the vertical [degrees]
         """
         self.state.time = self.release_time
         self.state.mass = self.initial_mass
@@ -139,7 +157,13 @@ class Fragment:
         self.state.fragment_count = Nfr
         self.energy.update(dErdt, dEddt, v, theta)
 
-    def check_limits(self, min_velocity: float, min_height: float):
+    def check_limits(self, min_velocity: float, min_height: float) -> None:
+        '''
+        check the limits of the simulation and set the done flag if the fragment has reached the limits
+
+        :param min_velocity: the minimum velocity to stop computing fragment updates in m/s
+        :param min_height: the minimum height at which to stop computation in m
+        '''
         if self.state.velocity < min_velocity or self.state.height < min_height:
             logger.info(f"Fragment {self.number} finished at {self.state.time:.2f} s")
             self.done = True

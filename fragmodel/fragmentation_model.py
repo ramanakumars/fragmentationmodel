@@ -3,6 +3,7 @@ from .fragment import Fragment
 from .planet import Planet
 import pandas as pd
 import logging
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ def sanitize_dict(dict: dict, name: str, preserve_time: bool = False) -> dict:
     sanitize the state dictionary by removing time if needed and adding fragment IDs
 
     :param name: the fragment name
-    :preserve_time: boolean flag to preserve or discard the time data
+    :param preserve_time: boolean flag to preserve or discard the time data
 
     :returns: the new dictionary with sanitized keys
     '''
@@ -71,6 +72,56 @@ class FragmentationModel:
                                        fragment_strength, self.main_body.bulk_density,
                                        self.main_body.ablation_coefficient, Cfr, alpha,
                                        self.planet, release_pressure=Prelease))
+
+    def save_config(self, filename: str) -> None:
+        """
+        Save the model configuration to a JSON file
+
+        :param filename: the name of the file to save to
+        """
+        config = {
+            'main_body': self.main_body.get_config(),
+            'fragments': [fragment.get_config() for fragment in self.fragments],
+        }
+
+        with open(filename, 'w') as f:
+            json.dump(config, f, indent=4)
+
+    @classmethod
+    def load_config(cls, filename: str, planet: Planet) -> 'FragmentationModel':
+        """
+        Load the model configuration from a JSON file
+
+        :param filename: the name of the file to load from
+        :param planet: the planet object to use for the model
+        :return: a FragmentationModel instance
+        """
+        with open(filename, 'r') as f:
+            config = json.load(f)
+
+        model = cls(
+            initial_mass=config['main_body']['initial_mass'],
+            initial_velocity=config['main_body']['initial_velocity'],
+            initial_angle=config['main_body']['initial_angle'],
+            initial_height=config['main_body']['initial_height'],
+            strength=config['main_body']['strength'],
+            ablation_coefficient=config['main_body']['ablation_coefficient'],
+            bulk_density=config['main_body']['bulk_density'],
+            C_fr=config['main_body']['C_fr'],
+            alpha=config['main_body']['alpha'],
+            planet=planet
+        )
+
+        for i, fragment_config in enumerate(config['fragments']):
+            model.add_fragment(
+                fragment_mass=fragment_config['initial_mass'],
+                Prelease=fragment_config['release_pressure'],
+                Cfr=fragment_config['C_fr'],
+                alpha=fragment_config['alpha'],
+                fragment_strength=fragment_config.get('initial_strength', -1)
+            )
+
+        return model
 
     def integrate(self, dt: float = 1e-2, max_time: float = 20, min_velocity: float = 100, min_height: float = 100) -> pd.DataFrame:
         """

@@ -6,14 +6,26 @@ from scipy.interpolate import interp1d
 
 @dataclass(init=False)
 class Planet:
+    """
+    Class to define the planetary constants and the temperature/pressure profile
+    """
+
     name: str
+    """ name of the planet """
     gravity: float
+    """ gravity of the planet [m/s^2] """
     Cd: float
+    """ drag coefficient of the planet [unitless] """
     planet_radius: float
+    """ planet radius [m] """
     Cr: float
+    """ ratio of ablation released as heat [unitless] """
     Ratmo: float
+    """ dry specific gas constant [J/(kg*K)] """
     rhoz: callable
+    """ function to calculate the density as a function of height [kg/m^3] """
     Pz: callable
+    """ function to calculate the pressure as a function of height [Pa] """
 
     def __init__(self, planet: str):
         """
