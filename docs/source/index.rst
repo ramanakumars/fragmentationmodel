@@ -16,5 +16,6 @@ documentation for details.
    :caption: Contents:
 
    Chelyabinsk test <notebooks/Chelyabinsk.ipynb>
+   MCMC example <notebooks/Chelyabinsk MCMC.ipynb>
    Fragmention module <fragmodel.rst>
 
