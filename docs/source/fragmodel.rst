@@ -12,14 +12,6 @@ fragmodel.energy module
    :undoc-members:
    :show-inheritance:
 
-fragmodel.frag\_funcs module
-----------------------------
-
-.. automodule:: fragmodel.frag_funcs
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 fragmodel.fragment module
 -------------------------
 
