@@ -1,4 +1,3 @@
-from .frag_funcs import FragModel
 import logging
 
 logger = logging.getLogger(__name__)
