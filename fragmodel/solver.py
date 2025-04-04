@@ -152,11 +152,15 @@ def log_likelihood(p: dict[float], get_model: callable, parameters: dict, integr
         for i in range(len(model.fragments)):
             lightcurve += df[f'f{i + 1}.lightcurve']
 
-        model_lightcurve_interped = np.interp(ref_dep_axis, df['main.time'], lightcurve)
+        # shift the model lightcurve to match the reference lightcurve by aligning the lightcurve peak
+        t_peak_model = df['main.t'][np.argmax(lightcurve)]
+        t_peak_ref = ref_dep_axis[np.argmax(ref_lightcurve)]
+
+        model_lightcurve_interped = np.interp(ref_dep_axis - t_peak_ref, df['main.time'] - t_peak_model, lightcurve)
     elif lightcurve_type == 'energy_deposition':
-        model_lightcurve_interped = np.interp(ref_dep_axis, df['main.height'], df['main.deposited'] * (1000 / kt), left=0, right=0)
+        model_lightcurve_interped = np.interp(ref_dep_axis, df['main.height'][::-1], df['main.deposited'][::-1] * (1000 / kt), left=0, right=0)
         for i in range(len(model.fragments)):
-            model_lightcurve_interped += np.interp(ref_dep_axis, df[f'f{i + 1}.height'], df[f'f{i + 1}.deposited'] * (1000 / kt), left=0, right=0)
+            model_lightcurve_interped += np.interp(ref_dep_axis, df[f'f{i + 1}.height'][::-1], df[f'f{i + 1}.deposited'][::-1] * (1000 / kt), left=0, right=0)
 
     # this is assuming zero error from the model
     sigma_sqr = ref_lightcurve_error ** 2.
