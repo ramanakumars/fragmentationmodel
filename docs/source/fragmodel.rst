@@ -44,6 +44,14 @@ fragmodel.planet module
    :undoc-members:
    :show-inheritance:
 
+fragmodel.solver module
+-----------------------
+
+.. automodule:: fragmodel.solver
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 fragmodel.state module
 ----------------------
 
