@@ -27,9 +27,19 @@ def sanitize_dict(dict: dict, name: str, preserve_time: bool = False) -> dict:
     return new_dict
 
 
+def sanitize_config(dict: dict) -> dict:
+    '''
+    sanitize the fragment configuration by removing unnecessary keys
+
+    :returns: the new dictionary with the removed keys
+    '''
+
+    return {key: value for key, value in dict.items() if key not in ['number']}
+
+
 class FragmentationModel:
     def __init__(self, initial_mass: float, initial_velocity: float, initial_angle: float, initial_height: float,
-                 strength: float, ablation_coefficient: float, bulk_density: float,
+                 initial_strength: float, ablation_coefficient: float, bulk_density: float,
                  C_fr: float, alpha: float, planet: Planet):
         '''
         initialize values for the main body
@@ -40,7 +50,7 @@ class FragmentationModel:
         :param initial_velocity: impacting velocity (m/s)
         :param initial_angle: angle with respect to the horizontal plane (degrees)
         :param iniital_height: initial height (m)
-        :param strength: initial bulk strength of the main body (Pa)
+        :param initial_strength: initial bulk strength of the main body (Pa)
         :param ablation_coefficient: ablation coefficient (kg/J)
         :param bulk_density: bulk density of the meteor (kg/m^3)
         :param Cfr: fragment parameter (see Avramenko et al., 2017, unitless)
@@ -48,7 +58,7 @@ class FragmentationModel:
         '''
         self.planet = planet
 
-        self.main_body = Fragment(0, initial_mass, strength, bulk_density, ablation_coefficient, C_fr,
+        self.main_body = Fragment(0, initial_mass, initial_strength, bulk_density, ablation_coefficient, C_fr,
                                   alpha, self.planet)
         self.main_body.set_release_properties(0, initial_height, initial_velocity, initial_angle)
 
@@ -73,19 +83,30 @@ class FragmentationModel:
                                        self.main_body.ablation_coefficient, C_fr, alpha,
                                        self.planet, release_pressure=release_pressure))
 
+    def get_config(self) -> dict:
+        """
+        Return the model configuration as a dictionary
+
+        :return: the model configuration
+        """
+        return {
+            'main_body': {**sanitize_config(self.main_body.get_config()), 
+                          'initial_height': self.main_body.release_altitude, 
+                          'initial_velocity': self.main_body.release_velocity, 
+                          'initial_angle': self.main_body.release_angle
+                          },
+            'fragments': [sanitize_config(fragment.get_config()) for fragment in self.fragments],
+        }
+
     def save_config(self, filename: str) -> None:
         """
         Save the model configuration to a JSON file
 
         :param filename: the name of the file to save to
         """
-        config = {
-            'main_body': self.main_body.get_config(),
-            'fragments': [fragment.get_config() for fragment in self.fragments],
-        }
 
         with open(filename, 'w') as f:
-            json.dump(config, f, indent=4)
+            json.dump(self.get_config(), f, indent=4)
 
     @classmethod
     def load_config(cls, filename: str, planet: Planet) -> 'FragmentationModel':
@@ -111,12 +132,16 @@ class FragmentationModel:
         :return: a FragmentationModel instance
         """
 
+        # we don't need the fragment index
+        config['main_body'].pop('release_pressure')
+
         model = cls(
             **config['main_body'],
             planet=planet
         )
 
-        for i, fragment_config in enumerate(config['fragments']):
+        for fragment_config in config['fragments']:
+            # we don't need the fragment index
             model.add_fragment(
                 fragment_mass=fragment_config.pop('initial_mass_fraction') * config['main_body']['initial_mass'],
                 **fragment_config

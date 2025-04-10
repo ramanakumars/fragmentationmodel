@@ -48,7 +48,6 @@ class Fragment:
             'ablation_coefficient': self.ablation_coefficient,
             'C_fr': self.C_fr,
             'alpha': self.alpha,
-            'planet': self.planet.name,
             'release_pressure': self.release_pressure
         }
 
@@ -64,20 +63,20 @@ class Fragment:
         self.release_velocity = release_velocity
         self.release_altitude = release_altitude
         self.release_angle = release_angle
+        radius = ((3 * self.initial_mass) / (4 * np.pi * self.bulk_density)) ** (1 / 3)
+        self.state.radius = radius
 
     def release(self) -> None:
         """
         Initialize the time-dependent state variables and "release" the fragment
         """
-        self.state.time = self.release_time
         self.state.mass = self.initial_mass
         self.state.velocity = self.release_velocity
         self.state.angle = np.radians(self.release_angle)
-        self.state.strength = self.initial_strength
+        self.state.time = self.release_time
         self.state.height = self.release_altitude
-        radius = ((3 * self.initial_mass) / (4 * np.pi * self.bulk_density)) ** (1 / 3)
-        self.state.radius = radius
-        self.state.surface_area = surface_area(radius)
+        self.state.strength = self.initial_strength
+        self.state.surface_area = surface_area(self.state.radius)
         self.state.mass_loss_rate = 0
         self.state.acceleration = 0
         self.state.dynamic_pressure = self.planet.rhoz(self.release_altitude) * self.release_velocity ** 2.

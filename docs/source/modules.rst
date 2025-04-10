@@ -1,7 +1,7 @@
-fragmodel
-=========
+fragmentationmodel
+==================
 
 .. toctree::
    :maxdepth: 4
 
-   fragmodel
+   fragmentationmodel
