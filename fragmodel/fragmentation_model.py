@@ -57,8 +57,8 @@ class FragmentationModel:
         logger.info(f"Initializing with diameter: {self.main_body.state.radius * 2}")
         logger.info(f"planet: {planet.name} g: {planet.gravity} m/s^2; Rp: {planet.planet_radius / 1000} km")
 
-    def add_fragment(self, fragment_mass: float, Prelease: float, Cfr: float = 1.5,
-                     alpha: float = 0.0, fragment_strength: float = -1) -> None:
+    def add_fragment(self, fragment_mass: float, release_pressure: float, C_fr: float = 1.5,
+                     alpha: float = 0.0, initial_strength: float = -1) -> None:
         """
         Add a fragment to the model
 
@@ -69,9 +69,9 @@ class FragmentationModel:
         :param fragment_strength: the optional initial strength of the fragment. set to -1 to borrow the parent strength at time of release
         """
         self.fragments.append(Fragment(len(self.fragments) + 1, fragment_mass,
-                                       fragment_strength, self.main_body.bulk_density,
-                                       self.main_body.ablation_coefficient, Cfr, alpha,
-                                       self.planet, release_pressure=Prelease))
+                                       initial_strength, self.main_body.bulk_density,
+                                       self.main_body.ablation_coefficient, C_fr, alpha,
+                                       self.planet, release_pressure=release_pressure))
 
     def save_config(self, filename: str) -> None:
         """
@@ -99,26 +99,27 @@ class FragmentationModel:
         with open(filename, 'r') as f:
             config = json.load(f)
 
+        return cls.load_from_dict(config, planet)
+
+    @classmethod
+    def load_from_dict(cls, config: dict, planet: Planet) -> 'FragmentationModel':
+        """
+        Load the model configuration from a dictionary
+
+        :param config: the configuration dictionary
+        :param planet: the planet object to use for the model
+        :return: a FragmentationModel instance
+        """
+
         model = cls(
-            initial_mass=config['main_body']['initial_mass'],
-            initial_velocity=config['main_body']['initial_velocity'],
-            initial_angle=config['main_body']['initial_angle'],
-            initial_height=config['main_body']['initial_height'],
-            strength=config['main_body']['strength'],
-            ablation_coefficient=config['main_body']['ablation_coefficient'],
-            bulk_density=config['main_body']['bulk_density'],
-            C_fr=config['main_body']['C_fr'],
-            alpha=config['main_body']['alpha'],
+            **config['main_body'],
             planet=planet
         )
 
         for i, fragment_config in enumerate(config['fragments']):
             model.add_fragment(
-                fragment_mass=fragment_config['initial_mass'],
-                Prelease=fragment_config['release_pressure'],
-                Cfr=fragment_config['C_fr'],
-                alpha=fragment_config['alpha'],
-                fragment_strength=fragment_config.get('initial_strength', -1)
+                fragment_mass=fragment_config.pop('initial_mass_fraction') * config['main_body']['initial_mass'],
+                **fragment_config
             )
 
         return model

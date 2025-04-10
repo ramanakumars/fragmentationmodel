@@ -64,8 +64,23 @@ class Planet:
         Pd = tpz[:, 1]  # in mbar
         Td = tpz[:, 2]  # in K
 
-        Pz = interp1d(zd * 1000., np.log10(Pd), kind='cubic')
-        Tz = interp1d(zd * 1000., Td, kind='cubic')
+        self.logPz = interp1d(zd * 1000., np.log10(Pd), kind='cubic')
+        self.Tz = interp1d(zd * 1000., Td, kind='cubic')
 
-        self.rhoz = lambda z: 10.**(Pz(z) + 2.) / (self.Ratmo * Tz(z))
-        self.Pz = lambda z: 10.**(Pz(z) + 2.)
+    def rhoz(self, z: float) -> float:
+        """
+        Calculate the density as a function of height
+        :param z: height [m]
+        :return: density [kg/m^3]
+        """
+
+        return self.Pz(z) / (self.Ratmo * self.Tz(z))
+
+    def Pz(self, z: float) -> float:
+        """
+        Calculate the pressure as a function of height
+        :param z: height [m]
+        :return: pressure [Pa]
+        """
+
+        return 10.**(self.logPz(z) + 2.)

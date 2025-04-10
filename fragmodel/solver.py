@@ -1,6 +1,10 @@
 import emcee
 import numpy as np
+from .planet import Planet
+from .fragmentation_model import FragmentationModel
 from multiprocessing import Pool
+from copy import deepcopy
+from collections import OrderedDict
 
 # 1 kt in joules
 kt = 4.184e12
@@ -32,9 +36,71 @@ def denormalize(parameter: float, min: float, max: float) -> float:
     return (max - min) * parameter + min
 
 
+def update_dict(orig_dict: dict, new_dict: dict) -> dict:
+    """
+    Update the original dictionary with the new dictionary recursively
+    :param orig_dict: the original dictionary
+    :param new_dict: the new dictionary
+
+    :returns: the updated dictionary
+    """
+    for key, value in new_dict.items():
+        if isinstance(value, dict):
+            orig_dict[key] = update_dict(orig_dict.get(key, {}), value)
+        else:
+            orig_dict[key] = value
+    return orig_dict
+
+
+def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
+    """
+    Convert the parameters from the MCMC sampler to an input config format for the frag model
+    :param p: the parameters from the MCMC sampler
+    :param parameters: the parameters dictionary from the model (containing the locations key for each parameter)
+
+    :returns: the updated config dictionary for the frag model
+    """
+    locations: dict[str] = {key: value['location'] for key, value in parameters.items()}
+
+    updated_config = {
+        'main_body': {},
+        'fragments': []
+    }
+
+    fragments = {}
+
+    for i, (key, location) in enumerate(locations.items()):
+        # the main body is stored as `main_body.<key>` in the config
+        if 'main_body' in location:
+            dict_key = location.split('.')[1]
+            updated_config['main_body'][dict_key] = denormalize(p[key], parameters[key]['min'], parameters[key]['max'])
+
+        # the fragments are stored as `fragment.<index>.<key>` in the config
+        elif 'fragment' in location:
+            # parse the fragment index and key from the location
+            _, fragment_index, fragment_key = location.split('.')
+
+            # first fragment is index 1 since the main body is technically index 0
+            fragment_index = int(fragment_index) - 1
+            if fragment_index not in fragments:
+                fragments[fragment_index] = {}
+            fragments[fragment_index][fragment_key] = denormalize(p[key], parameters[key]['min'], parameters[key]['max'])
+
+    # sort the fragments by index
+    fragments = OrderedDict(sorted(fragments.items()))
+
+    # and then update the config with the fragments
+    # in the order of their index
+    for fragment in fragments.values():
+        updated_config['fragments'].append(fragment)
+
+    return updated_config
+
+
 class MCMCSolver:
-    def __init__(self):
-        pass
+    def __init__(self, base_config: dict, planet: Planet):
+        self.base_config = base_config
+        self.planet = planet
 
     def set_parameters(self, parameters: dict):
         self.parameters = parameters
@@ -83,7 +149,7 @@ class MCMCSolver:
         '''
         self.integration_parameters = integration_parameters
 
-    def run_mcmc(self, get_model: callable, num_steps: int = 150, n_walkers: int = 10, verbose: bool = True, threads: int = 1):
+    def run_mcmc(self, num_steps: int = 150, n_walkers: int = 10, verbose: bool = True, threads: int = 1):
         '''
         Run the MCMC sampler and fit the parameters
 
@@ -97,13 +163,29 @@ class MCMCSolver:
         initial_guess = self.get_initial_guess(n_walkers)
         with Pool(processes=threads) as pool:
             self.sampler = emcee.EnsembleSampler(n_walkers, self.ndims, log_likelihood,
-                                                    args=(get_model, self.parameters, self.integration_parameters, self.ref_dep_axis,
-                                                    self.ref_lightcurve_error, self.ref_lightcurve, self.lightcurve_type),
-                                                    parameter_names=self.parameter_names, pool=pool)
+                                                 args=(self.parameters, self.base_config, self.planet, self.integration_parameters,
+                                                       self.ref_lightcurve, self.ref_dep_axis, self.ref_lightcurve_error, self.lightcurve_type),
+                                                 parameter_names=self.parameter_names, pool=pool)
             return self.sampler.run_mcmc(initial_guess, num_steps, progress=verbose)
 
+    def get_new_config(self, p: np.ndarray | dict) -> dict:
+        '''
+        Get the new configuration for the model based on the current parameters
 
-def likelihood_prior(p: dict[float], parameters: dict) -> float:
+        :param p: the current parameters
+
+        :returns: the new configuration for the model
+        '''
+
+        if isinstance(p, np.ndarray):
+            p = dict(zip(self.parameter_names, p))
+        elif not isinstance(p, dict):
+            raise ValueError("p must be either a numpy array or a dictionary")
+
+        return FragmentationModel.load_from_dict(update_dict(deepcopy(self.base_config), params_to_dict(p, self.parameters)), self.planet)
+
+
+def likelihood_prior(p: dict[float]) -> float:
     '''
     Get the model prior for each parameters.
     This is essentially a wrapper function to set a prior of -infinity when the parameter is outside its defined range
@@ -120,30 +202,32 @@ def likelihood_prior(p: dict[float], parameters: dict) -> float:
         return -np.inf
 
 
-def log_likelihood(p: dict[float], get_model: callable, parameters: dict, integration_parameters: dict,
-                   ref_dep_axis: np.ndarray, ref_lightcurve_error: np.ndarray, ref_lightcurve: np.ndarray, lightcurve_type: str) -> float:
+def log_likelihood(p: dict[float], parameters: dict, base_config: dict, planet: Planet, integration_parameters: dict,
+                   ref_lightcurve: np.ndarray, ref_dep_axis: np.ndarray, ref_lightcurve_error: np.ndarray, lightcurve_type: str) -> float:
     '''
     Get the log-likelihood for the current set of parameters by running FragmentationModel and comparing the lightcurve.
     This is what emcee will use to find the global minima. Returns -inf if any parameter in `p` is out of range.
 
-    :param p: current values of the model parameters
-    :param get_model: function that returns the new `FragmentationModel` object
-    :param integration_parameters: the integration parameters to use for the model
-    :param ref_dep_axis: the dependent axis for the reference lightcurve (either time [s] or height [m])
-    :param ref_lightcurve_error: the error for the reference lightcurve for each time/height
-    :param ref_lightcurve: the reference lightcurve for each time/height
-    :param lightcurve_type: the type of lightcurve (either 'lightcurve' or 'energy_deposition'). If passing in a lightcurve, `dependent_axis` should be time (s) and `lightcurve` should be in W. If passing in energy deposition, `dependent_axis` should be height (m) and `lightcurve` should be in W/km.
+    :param p: current test values of the model parameters
+    :param parameters: dict containing information about each parameter (min/max values, location in config, etc.)
+    :param base_config: the base configuration for the fragmentation model. The parameters in `p` will be used to update this config.
+    :param planet: the planet object to use for the model (see `Planet`)
+    :param integration_parameters: the integration parameters to use for the model (see `FragmentationModel.integrate`)
+    :param ref_lightcurve: the reference lightcurve to compare against
+    :param ref_dep_axis: the reference dependent axis (either time [s] or height [m], see `lightcurve_type`)
+    :param ref_lightcurve_error: the error in the reference lightcurve (constant if equal for all time or array for each measurement, same units as `ref_lightcurve`)
+    :param lightcurve_type: the type of lightcurve (either 'lightcurve' or 'energy_deposition'). If passing in a lightcurve, `ref_dep_axis` should be time (s) and `ref_lightcurve` should be in W. If passing in energy deposition, `ref_dep_axis` should be height (m) and `ref_lightcurve` should be in kt/km.
 
     :returns: the log-likelihood value for the current set of parameters `p`
     '''
-    ln_prior = likelihood_prior(p, parameters)
+    ln_prior = likelihood_prior(p)
 
     if not np.isfinite(ln_prior):
         return -np.inf
 
-    de_normalized_p = {key: denormalize(param, parameters[key]['min'], parameters[key]['max']) for key, param in p.items()}
+    updated_config = params_to_dict(p, parameters)
 
-    model = get_model(**de_normalized_p)
+    model = FragmentationModel.load_from_dict(update_dict(deepcopy(base_config), updated_config), planet)
 
     df = model.integrate(**integration_parameters)
 
