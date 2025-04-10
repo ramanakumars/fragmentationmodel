@@ -6,7 +6,7 @@ tqdm
 pandas
 m2r
 nbsphinx
-sphinx-rtd-theme
+sphinx_book_theme
 ipykernel
 lxml_html_clean
 myst-parser
