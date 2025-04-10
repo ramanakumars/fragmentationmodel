@@ -90,9 +90,9 @@ class FragmentationModel:
         :return: the model configuration
         """
         return {
-            'main_body': {**sanitize_config(self.main_body.get_config()), 
-                          'initial_height': self.main_body.release_altitude, 
-                          'initial_velocity': self.main_body.release_velocity, 
+            'main_body': {**sanitize_config(self.main_body.get_config()),
+                          'initial_height': self.main_body.release_altitude,
+                          'initial_velocity': self.main_body.release_velocity,
                           'initial_angle': self.main_body.release_angle
                           },
             'fragments': [sanitize_config(fragment.get_config()) for fragment in self.fragments],
