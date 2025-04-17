@@ -1,0 +1,124 @@
+{
+    "main_body": {
+        "initial_mass": 3591266.6666666665,
+        "initial_strength": 100000.0,
+        "bulk_density": 800.0,
+        "ablation_coefficient": 2e-09,
+        "C_fr": 1.0,
+        "alpha": 0.1,
+        "release_pressure": 0,
+        "initial_height": 200000.0,
+        "initial_velocity": 60000.0,
+        "initial_angle": 20.0
+    },
+    "fragments": [
+        {
+            "initial_mass": 718253.3333333334,
+            "initial_strength": 620000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 1.6,
+            "alpha": 0.0,
+            "release_pressure": 400000.0
+        },
+        {
+            "initial_mass": 646428.0,
+            "initial_strength": 520000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 1.6,
+            "alpha": 0.0,
+            "release_pressure": 500000.0
+        },
+        {
+            "initial_mass": 323214.0,
+            "initial_strength": 600000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 2.3,
+            "alpha": 0.0,
+            "release_pressure": 700000.0
+        },
+        {
+            "initial_mass": 333987.8,
+            "initial_strength": 450000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 3.5,
+            "alpha": 0.04,
+            "release_pressure": 700000.0
+        },
+        {
+            "initial_mass": 107737.99999999999,
+            "initial_strength": 400000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 3.4,
+            "alpha": 0.0,
+            "release_pressure": 500000.0
+        },
+        {
+            "initial_mass": 165198.26666666666,
+            "initial_strength": 510000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 2.7,
+            "alpha": 0.01,
+            "release_pressure": 300000.0
+        },
+        {
+            "initial_mass": 161607.0,
+            "initial_strength": 270000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 2.2,
+            "alpha": 0.01,
+            "release_pressure": 500000.0
+        },
+        {
+            "initial_mass": 351944.13333333336,
+            "initial_strength": 1200000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 2.0,
+            "alpha": 0.0,
+            "release_pressure": 500000.0
+        },
+        {
+            "initial_mass": 215475.99999999997,
+            "initial_strength": 1700000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 1.9,
+            "alpha": 0.0,
+            "release_pressure": 100000.0
+        },
+        {
+            "initial_mass": 179563.33333333334,
+            "initial_strength": 2200000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 1.7,
+            "alpha": 0.0,
+            "release_pressure": 100000.0
+        },
+        {
+            "initial_mass": 251388.6666666667,
+            "initial_strength": 3000000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 1.2,
+            "alpha": 0.0,
+            "release_pressure": 100000.0
+        },
+        {
+            "initial_mass": 71825.33333333333,
+            "initial_strength": 2400000.0,
+            "bulk_density": 800.0,
+            "ablation_coefficient": 2e-09,
+            "C_fr": 1.0,
+            "alpha": 0.01,
+            "release_pressure": 100000.0
+        }
+    ]
+}
