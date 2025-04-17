@@ -7,9 +7,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
+#cross-sectional area
 def surface_area(r):
-    return 2 * np.pi * (r**2.)
+    return np.pi * (r**2.)
 
 
 @dataclass
@@ -87,7 +87,7 @@ class Fragment:
 
         logger.info(f"Releasing fragment {self.number} at time {self.release_time:.2f} s and height {self.release_altitude / 1e3:.2f} km with mass {self.initial_mass / 1e3:.2f} tonnes and velocity {self.release_velocity:.2f} m/s")
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, min_velocity: float, min_height: float, max_height: float) -> None:
         '''
         Update the fragment state forward in time dt
 
@@ -104,9 +104,8 @@ class Fragment:
 
         logger.debug(f"time: {self.state.time:0.2f} height: {self.state.height:0.2f} mass: {self.state.mass:0.2f} velocity: {self.state.velocity:0.2f}")
 
-        if h > 2501000:
-            pass
-        elif h < -2498000:
+        if h > max_height or h < min_height:
+            logger.debug(f"Height: {h}, Velocity: {v}, Angle: {theta}")
             pass
         else:
             rho_a = self.planet.rhoz(h)
@@ -161,14 +160,14 @@ class Fragment:
             self.state.fragment_count = Nfr
             self.energy.update(dErdt, dEddt, v, theta)
 
-    def check_limits(self, min_velocity: float, min_height: float) -> None:
+    def check_limits(self, min_velocity: float, min_height: float, max_height: float) -> None:
         '''
         check the limits of the simulation and set the done flag if the fragment has reached the limits
 
         :param min_velocity: the minimum velocity to stop computing fragment updates in m/s
         :param min_height: the minimum height at which to stop computation in m
         '''
-        if self.state.velocity < min_velocity or self.state.height < min_height:
+        if self.state.velocity < min_velocity or self.state.height < min_height or self.state.height > max_height:
             logger.info(f"Fragment {self.number} finished at {self.state.time:.2f} s")
             self.done = True
 

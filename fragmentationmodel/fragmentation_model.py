@@ -149,7 +149,7 @@ class FragmentationModel:
 
         return model
 
-    def integrate(self, dt: float = 1e-2, max_time: float = 20, min_velocity: float = 100, min_height: float = 100) -> pd.DataFrame:
+    def integrate(self, dt: float = 1e-2, max_time: float = 20, min_velocity: float = 100, min_height: float = 100, max_height: float = 3000000) -> pd.DataFrame:
         """
         Integrate the model forward in time until one of the limits are reached
 
@@ -173,12 +173,12 @@ class FragmentationModel:
             # update the main body first
             # this involves calculating the next timestep in the position, velocity and mass
             # of the main body
-            self.main_body.update(dt)
+            self.main_body.update(dt, min_velocity, min_height, max_height)
             for fragment in self.fragments:
                 # do the same for the released fragments
                 if fragment.released and not fragment.done:
-                    fragment.update(dt)
-                    fragment.check_limits(min_velocity, min_height)
+                    fragment.update(dt, min_velocity, min_height, max_height)
+                    fragment.check_limits(min_velocity, min_height, max_height)
                 elif not fragment.released:
                     # for the fragments that are not released, check if the main body's
                     # ram pressure exceeds the release pressure
@@ -206,7 +206,7 @@ class FragmentationModel:
                         # update the mass of the main body
                         self.main_body.state.mass -= fragment.initial_mass
                         fragment.release()
-            self.main_body.check_limits(min_velocity, min_height)
+            self.main_body.check_limits(min_velocity, min_height, max_height)
 
             # Update the time
             t += dt
