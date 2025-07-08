@@ -1,10 +1,12 @@
+from collections import OrderedDict
+from copy import deepcopy
+from multiprocessing import Pool
+
 import emcee
 import numpy as np
-from .planet import Planet
+
 from .fragmentation_model import FragmentationModel
-from multiprocessing import Pool
-from copy import deepcopy
-from collections import OrderedDict
+from .planet import Planet
 
 # 1 kt in joules
 kt = 4.184e12
@@ -62,10 +64,7 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
     """
     locations: dict[str] = {key: value['location'] for key, value in parameters.items()}
 
-    updated_config = {
-        'main_body': {},
-        'fragments': []
-    }
+    updated_config = {'main_body': {}, 'fragments': []}
 
     fragments = {}
 
@@ -73,7 +72,9 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
         # the main body is stored as `main_body.<key>` in the config
         if 'main_body' in location:
             dict_key = location.split('.')[1]
-            updated_config['main_body'][dict_key] = denormalize(p[key], parameters[key]['min'], parameters[key]['max'])
+            updated_config['main_body'][dict_key] = denormalize(
+                p[key], parameters[key]['min'], parameters[key]['max']
+            )
 
         # the fragments are stored as `fragment.<index>.<key>` in the config
         elif 'fragment' in location:
@@ -84,7 +85,9 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
             fragment_index = int(fragment_index) - 1
             if fragment_index not in fragments:
                 fragments[fragment_index] = {}
-            fragments[fragment_index][fragment_key] = denormalize(p[key], parameters[key]['min'], parameters[key]['max'])
+            fragments[fragment_index][fragment_key] = denormalize(
+                p[key], parameters[key]['min'], parameters[key]['max']
+            )
 
     # sort the fragments by index
     fragments = OrderedDict(sorted(fragments.items()))
@@ -107,7 +110,13 @@ class MCMCSolver:
         self.parameter_names = list(parameters.keys())
         self.ndims = len(self.parameter_names)
 
-    def set_lightcurve(self, dependent_axis: np.ndarray, lightcurve: np.ndarray, lightcurve_err: np.ndarray | float, lightcurve_type: str = 'lightcurve'):
+    def set_lightcurve(
+        self,
+        dependent_axis: np.ndarray,
+        lightcurve: np.ndarray,
+        lightcurve_err: np.ndarray | float,
+        lightcurve_type: str = 'lightcurve',
+    ):
         '''
         Set the observe lightcurve for fitting
 
@@ -119,7 +128,9 @@ class MCMCSolver:
         :raises AssertionError: if input spectrum wavelength range is outside the model config wavelength range
         '''
         if lightcurve_type.lower() not in ['lightcurve', 'energy_deposition']:
-            raise ValueError("lightcurve_type must be either 'lightcurve' or 'energy_deposition'")
+            raise ValueError(
+                "lightcurve_type must be either 'lightcurve' or 'energy_deposition'"
+            )
 
         self.ref_lightcurve = lightcurve
         self.ref_dep_axis = dependent_axis
@@ -149,7 +160,13 @@ class MCMCSolver:
         '''
         self.integration_parameters = integration_parameters
 
-    def run_mcmc(self, num_steps: int = 150, n_walkers: int = 10, verbose: bool = True, threads: int = 1):
+    def run_mcmc(
+        self,
+        num_steps: int = 150,
+        n_walkers: int = 10,
+        verbose: bool = True,
+        threads: int = 1,
+    ):
         '''
         Run the MCMC sampler and fit the parameters
 
@@ -162,10 +179,23 @@ class MCMCSolver:
         '''
         initial_guess = self.get_initial_guess(n_walkers)
         with Pool(processes=threads) as pool:
-            self.sampler = emcee.EnsembleSampler(n_walkers, self.ndims, log_likelihood,
-                                                 args=(self.parameters, self.base_config, self.planet, self.integration_parameters,
-                                                       self.ref_lightcurve, self.ref_dep_axis, self.ref_lightcurve_error, self.lightcurve_type),
-                                                 parameter_names=self.parameter_names, pool=pool)
+            self.sampler = emcee.EnsembleSampler(
+                n_walkers,
+                self.ndims,
+                log_likelihood,
+                args=(
+                    self.parameters,
+                    self.base_config,
+                    self.planet,
+                    self.integration_parameters,
+                    self.ref_lightcurve,
+                    self.ref_dep_axis,
+                    self.ref_lightcurve_error,
+                    self.lightcurve_type,
+                ),
+                parameter_names=self.parameter_names,
+                pool=pool,
+            )
             return self.sampler.run_mcmc(initial_guess, num_steps, progress=verbose)
 
     def get_new_config(self, p: np.ndarray | dict) -> dict:
@@ -182,7 +212,10 @@ class MCMCSolver:
         elif not isinstance(p, dict):
             raise ValueError("p must be either a numpy array or a dictionary")
 
-        return FragmentationModel.load_from_dict(update_dict(deepcopy(self.base_config), params_to_dict(p, self.parameters)), self.planet)
+        return FragmentationModel.load_from_dict(
+            update_dict(deepcopy(self.base_config), params_to_dict(p, self.parameters)),
+            self.planet,
+        )
 
 
 def likelihood_prior(p: dict[float]) -> float:
@@ -197,13 +230,22 @@ def likelihood_prior(p: dict[float]) -> float:
     '''
     check = [(param > 0) & (param < 1) for key, param in p.items()]
     if np.all(check):
-        return 0.
+        return 0.0
     else:
         return -np.inf
 
 
-def log_likelihood(p: dict[float], parameters: dict, base_config: dict, planet: Planet, integration_parameters: dict,
-                   ref_lightcurve: np.ndarray, ref_dep_axis: np.ndarray, ref_lightcurve_error: np.ndarray, lightcurve_type: str) -> float:
+def log_likelihood(
+    p: dict[float],
+    parameters: dict,
+    base_config: dict,
+    planet: Planet,
+    integration_parameters: dict,
+    ref_lightcurve: np.ndarray,
+    ref_dep_axis: np.ndarray,
+    ref_lightcurve_error: np.ndarray,
+    lightcurve_type: str,
+) -> float:
     '''
     Get the log-likelihood for the current set of parameters by running FragmentationModel and comparing the lightcurve.
     This is what emcee will use to find the global minima. Returns -inf if any parameter in `p` is out of range.
@@ -221,35 +263,57 @@ def log_likelihood(p: dict[float], parameters: dict, base_config: dict, planet: 
     :returns: the log-likelihood value for the current set of parameters `p`
     '''
     ln_prior = likelihood_prior(p)
-
     if not np.isfinite(ln_prior):
         return -np.inf
 
     updated_config = params_to_dict(p, parameters)
 
-    model = FragmentationModel.load_from_dict(update_dict(deepcopy(base_config), updated_config), planet)
+    model = FragmentationModel.load_from_dict(
+        update_dict(deepcopy(base_config), updated_config), planet
+    )
 
-    df = model.integrate(**integration_parameters)
+    # check whether the height goes out of bounds
+    try:
+        df = model.integrate(**integration_parameters)
+    except ValueError:
+        return -np.inf
 
     if lightcurve_type == 'lightcurve':
-        lightcurve = df['main.lightcurve']
+        lightcurve = df['main.total']
         for i in range(len(model.fragments)):
-            lightcurve += df[f'f{i + 1}.lightcurve']
+            lightcurve += df[f'f{i + 1}.total']
 
         # shift the model lightcurve to match the reference lightcurve by aligning the lightcurve peak
-        t_peak_model = df['main.t'][np.argmax(lightcurve)]
+        t_peak_model = df['main.time'][np.argmax(lightcurve)]
         t_peak_ref = ref_dep_axis[np.argmax(ref_lightcurve)]
 
-        model_lightcurve_interped = np.interp(ref_dep_axis - t_peak_ref, df['main.time'] - t_peak_model, lightcurve)
+        model_lightcurve_interped = np.interp(
+            ref_dep_axis - t_peak_ref, df['main.time'] - t_peak_model, lightcurve
+        )
     elif lightcurve_type == 'energy_deposition':
-        model_lightcurve_interped = np.interp(ref_dep_axis, df['main.height'][::-1], df['main.deposited'][::-1] * (1000 / kt), left=0, right=0)
+        model_lightcurve_interped = np.interp(
+            ref_dep_axis,
+            df['main.height'][::-1],
+            df['main.deposited'][::-1] * (1000 / kt),
+            left=0,
+            right=0,
+        )
         for i in range(len(model.fragments)):
-            model_lightcurve_interped += np.interp(ref_dep_axis, df[f'f{i + 1}.height'][::-1], df[f'f{i + 1}.deposited'][::-1] * (1000 / kt), left=0, right=0)
+            model_lightcurve_interped += np.interp(
+                ref_dep_axis,
+                df[f'f{i + 1}.height'][::-1],
+                df[f'f{i + 1}.deposited'][::-1] * (1000 / kt),
+                left=0,
+                right=0,
+            )
 
     # this is assuming zero error from the model
-    sigma_sqr = ref_lightcurve_error ** 2.
+    sigma_sqr = ref_lightcurve_error**2.0
 
-    ln_llhood = -0.5 * np.sum((model_lightcurve_interped - ref_lightcurve)**2. / (sigma_sqr) + np.log(2 * np.pi * sigma_sqr))
+    ln_llhood = -0.5 * np.sum(
+        (model_lightcurve_interped - ref_lightcurve) ** 2.0 / (sigma_sqr)
+        + np.log(2 * np.pi * sigma_sqr)
+    )
     if not np.isfinite(ln_llhood):
         return -np.inf
 

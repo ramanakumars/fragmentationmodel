@@ -1,15 +1,18 @@
-from dataclasses import dataclass, field
-from .energy import Energy
-from .state import State
-from .planet import Planet
-import numpy as np
 import logging
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from .energy import Energy
+from .planet import Planet
+from .state import State
 
 logger = logging.getLogger(__name__)
 
 
+# cross-sectional area
 def surface_area(r):
-    return np.pi * (r**2.)
+    return np.pi * (r**2.0)
 
 
 @dataclass
@@ -48,10 +51,16 @@ class Fragment:
             'ablation_coefficient': self.ablation_coefficient,
             'C_fr': self.C_fr,
             'alpha': self.alpha,
-            'release_pressure': self.release_pressure
+            'release_pressure': self.release_pressure,
         }
 
-    def set_release_properties(self, release_time: float, release_altitude: float, release_velocity: float, release_angle: float) -> None:
+    def set_release_properties(
+        self,
+        release_time: float,
+        release_altitude: float,
+        release_velocity: float,
+        release_angle: float,
+    ) -> None:
         """
         Set the release properties of the fragment
         :param release_time: the time at which the fragment was released [s]
@@ -79,15 +88,21 @@ class Fragment:
         self.state.surface_area = surface_area(self.state.radius)
         self.state.mass_loss_rate = 0
         self.state.acceleration = 0
-        self.state.dynamic_pressure = self.planet.rhoz(self.release_altitude) * self.release_velocity ** 2.
+        self.state.dynamic_pressure = (
+            self.planet.rhoz(self.release_altitude) * self.release_velocity**2.0
+        )
         self.state.fragment_count = 1
         self.state.fragment_mass = self.initial_mass
         self.released = True
         self.done = False
 
-        logger.info(f"Releasing fragment {self.number} at time {self.release_time:.2f} s and height {self.release_altitude / 1e3:.2f} km with mass {self.initial_mass / 1e3:.2f} tonnes and velocity {self.release_velocity:.2f} m/s")
+        logger.info(
+            f"Releasing fragment {self.number} at time {self.release_time:.2f} s and height {self.release_altitude / 1e3:.2f} km with mass {self.initial_mass / 1e3:.2f} tonnes and velocity {self.release_velocity:.2f} m/s"
+        )
 
-    def update(self, dt: float) -> None:
+    def update(
+        self, dt: float, min_velocity: float, min_height: float, max_height: float
+    ) -> None:
         '''
         Update the fragment state forward in time dt
 
@@ -102,35 +117,46 @@ class Fragment:
         Mfr = self.state.fragment_mass
         sigma = self.state.strength
 
-        logger.debug(f"time: {self.state.time:0.2f} height: {self.state.height:0.2f} mass: {self.state.mass:0.2f} velocity: {self.state.velocity:0.2f}")
+        logger.debug(
+            f"time: {self.state.time:0.2f} height: {self.state.height:0.2f} mass: {self.state.mass:0.2f} velocity: {self.state.velocity:0.2f}"
+        )
 
         rho_a = self.planet.rhoz(h)
-        Pram = rho_a * (v**2.)
+        Pram = rho_a * (v**2.0)
 
-        dvdt = -self.planet.Cd * S * rho_a * (v**2.) / (2. * M) + self.planet.gravity * np.sin(theta)
-        dMdt = -self.ablation_coefficient * S * rho_a * (np.abs(v)**3.)
+        dvdt = -self.planet.Cd * S * rho_a * (v**2.0) / (
+            2.0 * M
+        ) + self.planet.gravity * np.sin(theta)
+        dMdt = -self.ablation_coefficient * S * rho_a * (np.abs(v) ** 3.0)
 
-        dthetadt = self.planet.gravity * np.cos(theta) / v - v * np.sin(theta) / (self.planet.planet_radius + h)
+        dthetadt = self.planet.gravity * np.cos(theta) / v - v * np.sin(theta) / (
+            self.planet.planet_radius + h
+        )
 
-        dEdtd = self.planet.Cd * S * rho_a * (np.abs(v)**3.) / 2.
-        dEdta = self.ablation_coefficient * S * rho_a * (np.abs(v)**5.) / (2.)
+        dEdtd = self.planet.Cd * S * rho_a * (np.abs(v) ** 3.0) / 2.0
+        dEdta = self.ablation_coefficient * S * rho_a * (np.abs(v) ** 5.0) / (2.0)
 
         dEtdt = dEdtd + dEdta  # released energy
         dErdt = self.planet.Cr * dEdta  # radiated energy
         dEddt = dEtdt - dErdt  # deposited energy
-        dSdt = (2. / 3.) * (S / M) * dMdt
+        dSdt = (2.0 / 3.0) * (S / M) * dMdt
 
-        if (Pram > sigma):
+        if Pram > sigma:
             Cfr = self.C_fr
             s0 = self.initial_strength
             M0 = self.initial_mass
             alpha = self.alpha
 
-            dSdtfr = Cfr * np.sqrt(Pram - sigma) / (M**(1. / 3.) * self.bulk_density**(1. / 6.)) * S
+            dSdtfr = (
+                Cfr
+                * np.sqrt(Pram - sigma)
+                / (M ** (1.0 / 3.0) * self.bulk_density ** (1.0 / 6.0))
+                * S
+            )
             dSdt += dSdtfr
 
-            Nfr = 16. * (S**3.) * self.bulk_density**2. / (9. * np.pi * M**2.)
-            sigma = s0 * (M0 / Mfr)**(alpha)
+            Nfr = 16.0 * (S**3.0) * self.bulk_density**2.0 / (9.0 * np.pi * M**2.0)
+            sigma = s0 * (M0 / Mfr) ** (alpha)
         else:
             Nfr = self.state.fragment_count
 
@@ -156,14 +182,20 @@ class Fragment:
         self.state.fragment_count = Nfr
         self.energy.update(dErdt, dEddt, v, theta)
 
-    def check_limits(self, min_velocity: float, min_height: float) -> None:
+    def check_limits(
+        self, min_velocity: float, min_height: float, max_height: float
+    ) -> None:
         '''
         check the limits of the simulation and set the done flag if the fragment has reached the limits
 
         :param min_velocity: the minimum velocity to stop computing fragment updates in m/s
         :param min_height: the minimum height at which to stop computation in m
         '''
-        if self.state.velocity < min_velocity or self.state.height < min_height:
+        if (
+            self.state.velocity < min_velocity
+            or self.state.height < min_height
+            or self.state.height > max_height
+        ):
             logger.info(f"Fragment {self.number} finished at {self.state.time:.2f} s")
             self.done = True
 

@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field, asdict, fields
+from dataclasses import asdict, dataclass, field, fields
+
 import numpy as np
 
 
@@ -40,9 +41,7 @@ class Energy:
         '''
         convert the dataclass to a dictionary
         '''
-        return {
-            key: value for key, value in asdict(self).items()
-        }
+        return {key: value for key, value in asdict(self).items()}
 
     @staticmethod
     def colnames() -> list[str]:
