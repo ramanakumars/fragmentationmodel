@@ -29,3 +29,10 @@ readme = "README.md"
 
 [project.urls]
 repository = "https://www.github.com/ramanakumars/fragmentationmodel"
+
+[tool.ruff.format]
+quote-style = "preserve"
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+ignore = ["E501"]
