@@ -1,7 +1,6 @@
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 # define the format for the log messages, here: "level name: module -  message"
 formatter = logging.Formatter("[%(levelname)s]: %(name)s -  %(message)s")
 if logger.handlers:

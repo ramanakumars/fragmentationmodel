@@ -1,3 +1,4 @@
+import logging
 from collections import OrderedDict
 from copy import deepcopy
 from multiprocessing import Pool
@@ -7,6 +8,8 @@ import numpy as np
 
 from .fragmentation_model import FragmentationModel
 from .planet import Planet
+
+logger = logging.getLogger(__name__)
 
 # 1 kt in joules
 kt = 4.184e12
@@ -275,7 +278,8 @@ def log_likelihood(
     # check whether the height goes out of bounds
     try:
         df = model.integrate(**integration_parameters)
-    except ValueError:
+    except ValueError as e:
+        logger.warning(e)
         return -np.inf
 
     if lightcurve_type == 'lightcurve':
@@ -288,8 +292,13 @@ def log_likelihood(
         t_peak_ref = ref_dep_axis[np.argmax(ref_lightcurve)]
 
         model_lightcurve_interped = np.interp(
-            ref_dep_axis - t_peak_ref, df['main.time'] - t_peak_model, lightcurve
+            ref_dep_axis - t_peak_ref,
+            df['main.time'] - t_peak_model,
+            lightcurve,
+            left=0,
+            right=0,
         )
+
     elif lightcurve_type == 'energy_deposition':
         model_lightcurve_interped = np.interp(
             ref_dep_axis,

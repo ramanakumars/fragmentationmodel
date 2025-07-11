@@ -41,7 +41,7 @@ def sanitize_config(dict: dict) -> dict:
 class FragmentationModel:
     def __init__(
         self,
-        initial_mass: float,
+        initial_energy: float,
         initial_velocity: float,
         initial_angle: float,
         initial_height: float,
@@ -57,7 +57,7 @@ class FragmentationModel:
 
         Parameters
         ----------
-        :param initial_mass: mass of the main body (kg)
+        :param initial_energy: the energy of the main body (J)
         :param initial_velocity: impacting velocity (m/s)
         :param initial_angle: angle with respect to the horizontal plane (degrees)
         :param iniital_height: initial height (m)
@@ -68,6 +68,8 @@ class FragmentationModel:
         :param alpha: Weibull strength scaling parameter (unitless)
         '''
         self.planet = planet
+
+        initial_mass = initial_energy / (0.5 * initial_velocity * initial_velocity)
 
         self.main_body = Fragment(
             0,
@@ -127,9 +129,14 @@ class FragmentationModel:
 
         :return: the model configuration
         """
+
+        main_body_config = self.main_body.get_config()
+        initial_mass = main_body_config.pop("initial_mass")
+        initial_energy = 0.5 * initial_mass * (self.main_body.release_velocity**2.0)
         return {
             'main_body': {
-                **sanitize_config(self.main_body.get_config()),
+                **sanitize_config(main_body_config),
+                'initial_energy': initial_energy,
                 'initial_height': self.main_body.release_altitude,
                 'initial_velocity': self.main_body.release_velocity,
                 'initial_angle': self.main_body.release_angle,
@@ -180,9 +187,12 @@ class FragmentationModel:
 
         for fragment_config in config['fragments']:
             # we don't need the fragment index
+            fragment_mass = (
+                fragment_config.pop('initial_mass_fraction')
+                * model.main_body.initial_mass
+            )
             model.add_fragment(
-                fragment_mass=fragment_config.pop('initial_mass_fraction')
-                * config['main_body']['initial_mass'],
+                fragment_mass=fragment_mass,
                 **fragment_config,
             )
 

@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field, fields, asdict
+from dataclasses import asdict, dataclass, field, fields
+
 import numpy as np
 
 
@@ -49,9 +50,7 @@ class State:
 
         :returns: the dictionary containing the dataclass fields
         '''
-        return {
-            key: value for key, value in asdict(self).items()
-        }
+        return {key: value for key, value in asdict(self).items()}
 
     @staticmethod
     def colnames() -> list[str]:
