@@ -1,0 +1,13 @@
+## Requirements for building docs
+numpy
+scipy
+matplotlib
+tqdm
+pandas
+m2r
+nbsphinx
+sphinx_book_theme
+ipykernel
+lxml_html_clean
+myst-parser
+emcee

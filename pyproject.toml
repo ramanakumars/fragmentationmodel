@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools >= 74.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fragmentationmodel"]
+exclude = []
+namespaces = false
+
+[project]
+name = "fragmentationmodel"
+version = "1.0"
+license = { file = 'LICENSE' }
+description = 'fragmentation model to simulate airburst'
+requires-python = ">=3.10"
+dependencies = [
+    'emcee>=3.1.6',
+    'numpy>=2.2.4',
+    'pandas>=2.2.3',
+    'scipy>=1.15.2',
+    'tqdm>=4.66.5'
+]
+keywords = ["fragmention model", "planetary atmospheres", "mcmc"]
+authors = [
+    { name = 'Ramanakumar Sankar', email = 'ramanakumar.shankar@gmail.com' },
+]
+readme = "README.md"
+
+[project.urls]
+repository = "https://www.github.com/ramanakumars/fragmentationmodel"
+
+[tool.ruff.format]
+quote-style = "preserve"
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+ignore = ["E501"]

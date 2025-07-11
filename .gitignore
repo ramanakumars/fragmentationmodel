@@ -133,3 +133,6 @@ dmypy.json
 *.dat 
 *.png
 *.jpg
+
+# docs
+docs/build/

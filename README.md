@@ -1,3 +1,5 @@
+[<img src="https://app.readthedocs.org/projects/fragmentationmodel/badge/?style=flat-square">](https://fragmentationmodel.readthedocs.io/en/latest/index.html)
+
 # Fragmentation Model
 Parameterized meteor fragmentation model written in Python based on 
 [Avramenko et al. 2014](https://doi.org/10.1002/2013JD021028) and 
