@@ -191,10 +191,7 @@ class FragmentationModel:
                 fragment_config.pop('initial_mass_fraction')
                 * model.main_body.initial_mass
             )
-            model.add_fragment(
-                fragment_mass=fragment_mass,
-                **fragment_config,
-            )
+            model.add_fragment(fragment_mass=fragment_mass, **fragment_config)
 
         return model
 

@@ -336,10 +336,13 @@ def log_likelihood(
     # this is assuming zero error from the model
     sigma_sqr = ref_lightcurve_error**2.0
 
-    mask = (sigma_sqr > 0) 
+    mask = sigma_sqr > 0
 
     ln_llhood = -0.5 * np.sum(
-        ((model_lightcurve_interped[mask] - ref_lightcurve[mask]) ** 2.0 / (sigma_sqr[mask]))
+        (
+            (model_lightcurve_interped[mask] - ref_lightcurve[mask]) ** 2.0
+            / (sigma_sqr[mask])
+        )
         + np.log(2 * np.pi * sigma_sqr[mask])
     )
     if not np.isfinite(ln_llhood):
