@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 kt = 4.184e12
 
 
-def normalize(parameter: float, min: float, max: float) -> float:
+def normalize(parameter: float, min: float, max: float, scale: str = "linear") -> float:
     '''
     Normalize the parameter to be between 0 and 1
 
@@ -25,10 +25,15 @@ def normalize(parameter: float, min: float, max: float) -> float:
 
     :returns: the normalized parameter
     '''
-    return (parameter - min) / (max - min)
+    if scale == "linear":
+        return (parameter - min) / (max - min)
+    elif scale == "log":
+        return (np.log(parameter) - np.log(min)) / (np.log(max) - np.log(min))
 
 
-def denormalize(parameter: float, min: float, max: float) -> float:
+def denormalize(
+    parameter: float, min: float, max: float, scale: str = "linear"
+) -> float:
     '''
     Denormalize the parameter to be between min and max
 
@@ -38,7 +43,10 @@ def denormalize(parameter: float, min: float, max: float) -> float:
 
     :returns: the denormalized parameter
     '''
-    return (max - min) * parameter + min
+    if scale == "linear":
+        return (max - min) * parameter + min
+    elif scale == "log":
+        return np.exp((np.log(max) - np.log(min)) * parameter + np.log(min))
 
 
 def update_dict(orig_dict: dict, new_dict: dict) -> dict:
@@ -76,7 +84,10 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
         if 'main_body' in location:
             dict_key = location.split('.')[1]
             updated_config['main_body'][dict_key] = denormalize(
-                p[key], parameters[key]['min'], parameters[key]['max']
+                p[key],
+                parameters[key]['min'],
+                parameters[key]['max'],
+                scale=parameters[key].get('scale', 'linear'),
             )
 
         # the fragments are stored as `fragment.<index>.<key>` in the config
@@ -89,7 +100,10 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
             if fragment_index not in fragments:
                 fragments[fragment_index] = {}
             fragments[fragment_index][fragment_key] = denormalize(
-                p[key], parameters[key]['min'], parameters[key]['max']
+                p[key],
+                parameters[key]['min'],
+                parameters[key]['max'],
+                scale=parameters[key].get('scale', 'linear'),
             )
 
     # sort the fragments by index
@@ -285,7 +299,7 @@ def log_likelihood(
         return -np.inf
 
     if lightcurve_type == 'lightcurve':
-        #mask = np.isfinite(df["main.total"])
+        # mask = np.isfinite(df["main.total"])
         lightcurve = df['main.total']
         for i in range(len(model.fragments)):
             lightcurve += df[f'f{i + 1}.total']
@@ -322,9 +336,11 @@ def log_likelihood(
     # this is assuming zero error from the model
     sigma_sqr = ref_lightcurve_error**2.0
 
+    mask = (sigma_sqr > 0) 
+
     ln_llhood = -0.5 * np.sum(
-        ((model_lightcurve_interped - ref_lightcurve) ** 2.0 / (sigma_sqr))
-        + np.log(2 * np.pi * sigma_sqr)
+        ((model_lightcurve_interped[mask] - ref_lightcurve[mask]) ** 2.0 / (sigma_sqr[mask]))
+        + np.log(2 * np.pi * sigma_sqr[mask])
     )
     if not np.isfinite(ln_llhood):
         return -np.inf

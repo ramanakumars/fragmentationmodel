@@ -131,8 +131,8 @@ class FragmentationModel:
         """
 
         main_body_config = self.main_body.get_config()
-        initial_mass = main_body_config.pop("initial_mass")
-        initial_energy = 0.5 * initial_mass * (self.main_body.release_velocity**2.0)
+        initial_energy = main_body_config.pop("initial_energy")
+        # initial_energy = 0.5 * initial_mass * (self.main_body.release_velocity**2.0)
         return {
             'main_body': {
                 **sanitize_config(main_body_config),
@@ -191,10 +191,7 @@ class FragmentationModel:
                 fragment_config.pop('initial_mass_fraction')
                 * model.main_body.initial_mass
             )
-            model.add_fragment(
-                fragment_mass=fragment_mass,
-                **fragment_config,
-            )
+            model.add_fragment(fragment_mass=fragment_mass, **fragment_config)
 
         return model
 
