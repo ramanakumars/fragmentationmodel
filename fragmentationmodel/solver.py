@@ -169,6 +169,7 @@ class MCMCSolver:
         n_walkers: int = 10,
         verbose: bool = True,
         threads: int = 1,
+        moves: emcee.moves.Move = emcee.moves.StretchMove(),
     ):
         '''
         Run the MCMC sampler and fit the parameters
@@ -198,6 +199,7 @@ class MCMCSolver:
                 ),
                 parameter_names=self.parameter_names,
                 pool=pool,
+                moves=moves,
             )
             return self.sampler.run_mcmc(initial_guess, num_steps, progress=verbose)
 
@@ -283,6 +285,7 @@ def log_likelihood(
         return -np.inf
 
     if lightcurve_type == 'lightcurve':
+        #mask = np.isfinite(df["main.total"])
         lightcurve = df['main.total']
         for i in range(len(model.fragments)):
             lightcurve += df[f'f{i + 1}.total']
@@ -320,7 +323,7 @@ def log_likelihood(
     sigma_sqr = ref_lightcurve_error**2.0
 
     ln_llhood = -0.5 * np.sum(
-        (model_lightcurve_interped - ref_lightcurve) ** 2.0 / (sigma_sqr)
+        ((model_lightcurve_interped - ref_lightcurve) ** 2.0 / (sigma_sqr))
         + np.log(2 * np.pi * sigma_sqr)
     )
     if not np.isfinite(ln_llhood):

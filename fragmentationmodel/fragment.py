@@ -121,66 +121,69 @@ class Fragment:
             f"time: {self.state.time:0.2f} height: {self.state.height:0.2f} mass: {self.state.mass:0.2f} velocity: {self.state.velocity:0.2f}"
         )
 
-        rho_a = self.planet.rhoz(h)
-        Pram = rho_a * (v**2.0)
-
-        dvdt = -self.planet.Cd * S * rho_a * (v**2.0) / (
-            2.0 * M
-        ) + self.planet.gravity * np.sin(theta)
-        dMdt = -self.ablation_coefficient * S * rho_a * (np.abs(v) ** 3.0)
-
-        dthetadt = self.planet.gravity * np.cos(theta) / v - v * np.sin(theta) / (
-            self.planet.planet_radius + h
-        )
-
-        dEdtd = self.planet.Cd * S * rho_a * (np.abs(v) ** 3.0) / 2.0
-        dEdta = self.ablation_coefficient * S * rho_a * (np.abs(v) ** 5.0) / (2.0)
-
-        dEtdt = dEdtd + dEdta  # released energy
-        dErdt = self.planet.Cr * dEdta  # radiated energy
-        dEddt = dEtdt - dErdt  # deposited energy
-        dSdt = (2.0 / 3.0) * (S / M) * dMdt
-
-        if Pram > sigma:
-            Cfr = self.C_fr
-            s0 = self.initial_strength
-            M0 = self.initial_mass
-            alpha = self.alpha
-
-            dSdtfr = (
-                Cfr
-                * np.sqrt(Pram - sigma)
-                / (M ** (1.0 / 3.0) * self.bulk_density ** (1.0 / 6.0))
-                * S
-            )
-            dSdt += dSdtfr
-
-            Nfr = 16.0 * (S**3.0) * self.bulk_density**2.0 / (9.0 * np.pi * M**2.0)
-            sigma = s0 * (M0 / Mfr) ** (alpha)
+        if h > max_height or h < min_height:
+            pass
         else:
-            Nfr = self.state.fragment_count
+            rho_a = self.planet.rhoz(h)
+            Pram = rho_a * (v**2.0)
 
-        M += dMdt * dt
-        Mfr = M / Nfr
-        S += dSdt * dt
-        theta += dthetadt * dt
-        h += -v * np.sin(theta) * dt
-        v += dvdt * dt
+            dvdt = -self.planet.Cd * S * rho_a * (v**2.0) / (
+                2.0 * M
+            ) + self.planet.gravity * np.sin(theta)
+            dMdt = -self.ablation_coefficient * S * rho_a * (np.abs(v) ** 3.0)
 
-        # fill in the stuff for the fragment
-        self.state.time = self.state.time + dt
-        self.state.mass = M
-        self.state.velocity = v
-        self.state.angle = theta
-        self.state.radius = np.sqrt(S / (np.pi))
-        self.state.surface_area = S
-        self.state.height = h
-        self.state.dynamic_pressure = Pram
-        self.state.strength = sigma
+            dthetadt = self.planet.gravity * np.cos(theta) / v - v * np.sin(theta) / (
+                self.planet.planet_radius + h
+            )
 
-        self.state.fragment_mass = Mfr
-        self.state.fragment_count = Nfr
-        self.energy.update(dErdt, dEddt, v, theta)
+            dEdtd = self.planet.Cd * S * rho_a * (np.abs(v) ** 3.0) / 2.0
+            dEdta = self.ablation_coefficient * S * rho_a * (np.abs(v) ** 5.0) / (2.0)
+
+            dEtdt = dEdtd + dEdta  # released energy
+            dErdt = self.planet.Cr * dEdta  # radiated energy
+            dEddt = dEtdt - dErdt  # deposited energy
+            dSdt = (2.0 / 3.0) * (S / M) * dMdt
+
+            if Pram > sigma:
+                Cfr = self.C_fr
+                s0 = self.initial_strength
+                M0 = self.initial_mass
+                alpha = self.alpha
+
+                dSdtfr = (
+                    Cfr
+                    * np.sqrt(Pram - sigma)
+                    / (M ** (1.0 / 3.0) * self.bulk_density ** (1.0 / 6.0))
+                    * S
+                )
+                dSdt += dSdtfr
+
+                Nfr = 16.0 * (S**3.0) * self.bulk_density**2.0 / (9.0 * np.pi * M**2.0)
+                sigma = s0 * (M0 / Mfr) ** (alpha)
+            else:
+                Nfr = self.state.fragment_count
+
+            M += dMdt * dt
+            Mfr = M / Nfr
+            S += dSdt * dt
+            theta += dthetadt * dt
+            h += -v * np.sin(theta) * dt
+            v += dvdt * dt
+
+            # fill in the stuff for the fragment
+            self.state.time = self.state.time + dt
+            self.state.mass = M
+            self.state.velocity = v
+            self.state.angle = theta
+            self.state.radius = np.sqrt(S / (np.pi))
+            self.state.surface_area = S
+            self.state.height = h
+            self.state.dynamic_pressure = Pram
+            self.state.strength = sigma
+
+            self.state.fragment_mass = Mfr
+            self.state.fragment_count = Nfr
+            self.energy.update(dErdt, dEddt, v, theta)
 
     def check_limits(
         self, min_velocity: float, min_height: float, max_height: float
