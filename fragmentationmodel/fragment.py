@@ -121,12 +121,10 @@ class Fragment:
             f"time: {self.state.time:0.2f} height: {self.state.height:0.2f} mass: {self.state.mass:0.2f} velocity: {self.state.velocity:0.2f}"
         )
 
-        if h > max_height or h < min_height:
-            pass
-        else:
-            rho_a = self.planet.rhoz(h)
-            Pram = rho_a * (v**2.0)
+        rho_a = self.planet.rhoz(h)
+        Pram = rho_a * (v**2.0)
 
+        if not self.done:
             dvdt = -self.planet.Cd * S * rho_a * (v**2.0) / (
                 2.0 * M
             ) + self.planet.gravity * np.sin(theta)
@@ -169,21 +167,23 @@ class Fragment:
             theta += dthetadt * dt
             h += -v * np.sin(theta) * dt
             v += dvdt * dt
+        else:
+            dErdt = dEddt = 0.0
 
-            # fill in the stuff for the fragment
-            self.state.time = self.state.time + dt
-            self.state.mass = M
-            self.state.velocity = v
-            self.state.angle = theta
-            self.state.radius = np.sqrt(S / (np.pi))
-            self.state.surface_area = S
-            self.state.height = h
-            self.state.dynamic_pressure = Pram
-            self.state.strength = sigma
+        # fill in the stuff for the fragment
+        self.state.time = self.state.time + dt
+        self.state.mass = M
+        self.state.velocity = v
+        self.state.angle = theta
+        self.state.radius = np.sqrt(S / (np.pi))
+        self.state.surface_area = S
+        self.state.height = h
+        self.state.dynamic_pressure = Pram
+        self.state.strength = sigma
 
-            self.state.fragment_mass = Mfr
-            self.state.fragment_count = Nfr
-            self.energy.update(dErdt, dEddt, v, theta)
+        self.state.fragment_mass = Mfr
+        self.state.fragment_count = Nfr
+        self.energy.update(dErdt, dEddt, v, theta)
 
     def check_limits(
         self, min_velocity: float, min_height: float, max_height: float
@@ -198,6 +198,8 @@ class Fragment:
             self.state.velocity < min_velocity
             or self.state.height < min_height
             or self.state.height > max_height
+            or self.state.mass < 1
+            or self.state.surface_area < 0
         ):
             logger.info(f"Fragment {self.number} finished at {self.state.time:.2f} s")
             self.done = True

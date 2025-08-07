@@ -191,6 +191,8 @@ class FragmentationModel:
                 fragment_config.pop('initial_mass_fraction')
                 * model.main_body.initial_mass
             )
+            fragment_config.pop('bulk_density', None)
+            fragment_config.pop('ablation_coefficient', None)
             model.add_fragment(fragment_mass=fragment_mass, **fragment_config)
 
         return model
@@ -229,7 +231,7 @@ class FragmentationModel:
             self.main_body.update(dt, min_velocity, min_height, max_height)
             for fragment in self.fragments:
                 # do the same for the released fragments
-                if fragment.released and not fragment.done:
+                if fragment.released:
                     fragment.update(dt, min_velocity, min_height, max_height)
                     fragment.check_limits(min_velocity, min_height, max_height)
                 elif not fragment.released:
@@ -270,6 +272,7 @@ class FragmentationModel:
                         # update the mass of the main body
                         self.main_body.state.mass -= fragment.initial_mass
                         fragment.release()
+
             self.main_body.check_limits(min_velocity, min_height, max_height)
 
             # Update the time

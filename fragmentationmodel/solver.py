@@ -60,6 +60,8 @@ def update_dict(orig_dict: dict, new_dict: dict) -> dict:
     for key, value in new_dict.items():
         if isinstance(value, dict):
             orig_dict[key] = update_dict(orig_dict.get(key, {}), value)
+        elif isinstance(value, list):
+            orig_dict[key].extend(value)
         else:
             orig_dict[key] = value
     return orig_dict
