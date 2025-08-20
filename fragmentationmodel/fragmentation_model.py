@@ -187,10 +187,7 @@ class FragmentationModel:
 
         for fragment_config in config['fragments']:
             # we don't need the fragment index
-            fragment_mass = (
-                fragment_config.pop('initial_mass_fraction')
-                * model.main_body.initial_mass
-            )
+            fragment_mass = fragment_config.pop('initial_mass')
             fragment_config.pop('bulk_density', None)
             fragment_config.pop('ablation_coefficient', None)
             model.add_fragment(fragment_mass=fragment_mass, **fragment_config)
