@@ -131,7 +131,7 @@ class FragmentationModel:
         """
 
         main_body_config = self.main_body.get_config()
-        initial_mass = main_body_config.pop("initial_energy")
+        initial_mass = main_body_config.pop("initial_mass")
         initial_energy = 0.5 * initial_mass * (self.main_body.release_velocity**2.0)
         return {
             'main_body': {
