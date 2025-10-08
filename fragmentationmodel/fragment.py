@@ -199,7 +199,7 @@ class Fragment:
             or self.state.height < min_height
             or self.state.height > max_height
             or self.state.mass < 1
-            or self.state.surface_area < 0
+            or self.state.surface_area < 0 
         ):
             logger.info(f"Fragment {self.number} finished at {self.state.time:.2f} s")
             self.done = True

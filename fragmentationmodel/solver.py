@@ -4,6 +4,7 @@ from copy import deepcopy
 from multiprocessing import Pool
 
 import emcee
+import dnest4
 import numpy as np
 
 from .fragmentation_model import FragmentationModel
@@ -198,12 +199,8 @@ class MCMCSolver:
         :returns: the emcee EnsembleSampler object with the walker history
         '''
         initial_guess = self.get_initial_guess(n_walkers)
-        with Pool(processes=threads) as pool:
-            self.sampler = emcee.EnsembleSampler(
-                n_walkers,
-                self.ndims,
-                log_likelihood,
-                args=(
+        modell = log_likelihood(
+                    initial_guess,
                     self.parameters,
                     self.base_config,
                     self.planet,
@@ -212,12 +209,14 @@ class MCMCSolver:
                     self.ref_dep_axis,
                     self.ref_lightcurve_error,
                     self.lightcurve_type,
-                ),
-                parameter_names=self.parameter_names,
+                )
+        with Pool(processes=threads) as pool:
+            self.sampler = dnest4.DNest4Sampler(
+                modell,
                 pool=pool,
-                moves=moves,
+                backend=dnest4.backends.CSVBackend("."),
             )
-            return self.sampler.run_mcmc(initial_guess, num_steps, progress=verbose)
+            return self.sampler.run(progress=verbose)
 
     def get_new_config(self, p: np.ndarray | dict) -> dict:
         '''
@@ -283,6 +282,13 @@ def log_likelihood(
 
     :returns: the log-likelihood value for the current set of parameters `p`
     '''
+    parameter_names = list(parameters.keys())
+
+    if isinstance(p, np.ndarray):
+            p = dict(zip(parameter_names, p))
+    elif not isinstance(p, dict):
+            raise ValueError("p must be either a numpy array or a dictionary")
+
     ln_prior = likelihood_prior(p)
     if not np.isfinite(ln_prior):
         return -np.inf

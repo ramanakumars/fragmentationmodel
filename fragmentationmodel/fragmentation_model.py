@@ -195,7 +195,8 @@ class FragmentationModel:
             elif 'initial_mass' in fragment_config:
                 fragment_mass = fragment_config.pop('initial_mass')
             else:
-                raise KeyError("Either initial_mass or initial_mass_fraction should be defined")
+                raise KeyError("Either initial_mass or initial_mass_fraction should be defined") 
+
             fragment_config.pop('bulk_density', None)
             fragment_config.pop('ablation_coefficient', None)
             model.add_fragment(fragment_mass=fragment_mass, **fragment_config)
@@ -277,7 +278,6 @@ class FragmentationModel:
                         # update the mass of the main body
                         self.main_body.state.mass -= fragment.initial_mass
                         fragment.release()
-
             self.main_body.check_limits(min_velocity, min_height, max_height)
 
             # Update the time
