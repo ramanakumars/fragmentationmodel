@@ -4,6 +4,7 @@ from copy import deepcopy
 from multiprocessing import Pool
 
 import emcee
+import dnest4
 import numpy as np
 
 from .fragmentation_model import FragmentationModel
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 kt = 4.184e12
 
 
-def normalize(parameter: float, min: float, max: float) -> float:
+def normalize(parameter: float, min: float, max: float, scale: str = "linear") -> float:
     '''
     Normalize the parameter to be between 0 and 1
 
@@ -25,10 +26,15 @@ def normalize(parameter: float, min: float, max: float) -> float:
 
     :returns: the normalized parameter
     '''
-    return (parameter - min) / (max - min)
+    if scale == "linear":
+        return (parameter - min) / (max - min)
+    elif scale == "log":
+        return (np.log(parameter) - np.log(min)) / (np.log(max) - np.log(min))
 
 
-def denormalize(parameter: float, min: float, max: float) -> float:
+def denormalize(
+    parameter: float, min: float, max: float, scale: str = "linear"
+) -> float:
     '''
     Denormalize the parameter to be between min and max
 
@@ -38,7 +44,10 @@ def denormalize(parameter: float, min: float, max: float) -> float:
 
     :returns: the denormalized parameter
     '''
-    return (max - min) * parameter + min
+    if scale == "linear":
+        return (max - min) * parameter + min
+    elif scale == "log":
+        return np.exp((np.log(max) - np.log(min)) * parameter + np.log(min))
 
 
 def update_dict(orig_dict: dict, new_dict: dict) -> dict:
@@ -52,6 +61,8 @@ def update_dict(orig_dict: dict, new_dict: dict) -> dict:
     for key, value in new_dict.items():
         if isinstance(value, dict):
             orig_dict[key] = update_dict(orig_dict.get(key, {}), value)
+        elif isinstance(value, list):
+            orig_dict[key].extend(value)
         else:
             orig_dict[key] = value
     return orig_dict
@@ -76,7 +87,10 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
         if 'main_body' in location:
             dict_key = location.split('.')[1]
             updated_config['main_body'][dict_key] = denormalize(
-                p[key], parameters[key]['min'], parameters[key]['max']
+                p[key],
+                parameters[key]['min'],
+                parameters[key]['max'],
+                scale=parameters[key].get('scale', 'linear'),
             )
 
         # the fragments are stored as `fragment.<index>.<key>` in the config
@@ -89,7 +103,10 @@ def params_to_dict(p: np.ndarray, parameters: dict) -> dict:
             if fragment_index not in fragments:
                 fragments[fragment_index] = {}
             fragments[fragment_index][fragment_key] = denormalize(
-                p[key], parameters[key]['min'], parameters[key]['max']
+                p[key],
+                parameters[key]['min'],
+                parameters[key]['max'],
+                scale=parameters[key].get('scale', 'linear'),
             )
 
     # sort the fragments by index
@@ -169,6 +186,7 @@ class MCMCSolver:
         n_walkers: int = 10,
         verbose: bool = True,
         threads: int = 1,
+        moves: emcee.moves.Move = emcee.moves.StretchMove(),
     ):
         '''
         Run the MCMC sampler and fit the parameters
@@ -181,12 +199,8 @@ class MCMCSolver:
         :returns: the emcee EnsembleSampler object with the walker history
         '''
         initial_guess = self.get_initial_guess(n_walkers)
-        with Pool(processes=threads) as pool:
-            self.sampler = emcee.EnsembleSampler(
-                n_walkers,
-                self.ndims,
-                log_likelihood,
-                args=(
+        modell = log_likelihood(
+                    initial_guess,
                     self.parameters,
                     self.base_config,
                     self.planet,
@@ -195,11 +209,14 @@ class MCMCSolver:
                     self.ref_dep_axis,
                     self.ref_lightcurve_error,
                     self.lightcurve_type,
-                ),
-                parameter_names=self.parameter_names,
+                )
+        with Pool(processes=threads) as pool:
+            self.sampler = dnest4.DNest4Sampler(
+                modell,
                 pool=pool,
+                backend=dnest4.backends.CSVBackend("."),
             )
-            return self.sampler.run_mcmc(initial_guess, num_steps, progress=verbose)
+            return self.sampler.run(progress=verbose)
 
     def get_new_config(self, p: np.ndarray | dict) -> dict:
         '''
@@ -265,6 +282,13 @@ def log_likelihood(
 
     :returns: the log-likelihood value for the current set of parameters `p`
     '''
+    parameter_names = list(parameters.keys())
+
+    if isinstance(p, np.ndarray):
+            p = dict(zip(parameter_names, p))
+    elif not isinstance(p, dict):
+            raise ValueError("p must be either a numpy array or a dictionary")
+
     ln_prior = likelihood_prior(p)
     if not np.isfinite(ln_prior):
         return -np.inf
@@ -283,6 +307,7 @@ def log_likelihood(
         return -np.inf
 
     if lightcurve_type == 'lightcurve':
+        # mask = np.isfinite(df["main.total"])
         lightcurve = df['main.total']
         for i in range(len(model.fragments)):
             lightcurve += df[f'f{i + 1}.total']
@@ -319,9 +344,14 @@ def log_likelihood(
     # this is assuming zero error from the model
     sigma_sqr = ref_lightcurve_error**2.0
 
+    mask = sigma_sqr > 0
+
     ln_llhood = -0.5 * np.sum(
-        (model_lightcurve_interped - ref_lightcurve) ** 2.0 / (sigma_sqr)
-        + np.log(2 * np.pi * sigma_sqr)
+        (
+            (model_lightcurve_interped[mask] - ref_lightcurve[mask]) ** 2.0
+            / (sigma_sqr[mask])
+        )
+        + np.log(2 * np.pi * sigma_sqr[mask])
     )
     if not np.isfinite(ln_llhood):
         return -np.inf
