@@ -1,0 +1,25 @@
+{
+    "main_body": {
+        "initial_strength": 300000.0,
+        "bulk_density": 3300.0,
+        "ablation_coefficient": 6e-09,
+        "C_fr": 1.5,
+        "alpha": 0.18,
+        "release_pressure": 0,
+        "initial_energy": 2147940480000000.0,
+        "initial_height": 45000.0,
+        "initial_velocity": 19040.0,
+        "initial_angle": 17.0
+    },
+    "fragments": [
+        {
+            "initial_mass": 296250.0,
+            "initial_strength": 10500000.0,
+            "bulk_density": 3300.0,
+            "ablation_coefficient": 6e-09,
+            "C_fr": 1.5,
+            "alpha": 0.0,
+            "release_pressure": 975000.0
+        }
+    ]
+}
